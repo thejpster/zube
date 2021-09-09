@@ -23,7 +23,6 @@ async def test_all(dut):
     cocotb.fork(clock.start())
 
     await reset(dut)
-    assert dut.clk == 0
     assert dut.reset == 0
     assert dut.cs == 0
     assert dut.data_in == 0
