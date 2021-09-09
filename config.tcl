@@ -4,12 +4,18 @@ set ::env(DESIGN_NAME) zero2asic
 # Change if needed
 set ::env(VERILOG_FILES) [glob $::env(DESIGN_DIR)/src/*.v]
 
-set ::env(PL_TARGET_DENSITY) 0.4
-set ::env(FP_CORE_UTIL) 30
+# turn off clock
+set ::env(CLOCK_TREE_SYNTH) 0
+set ::env(CLOCK_PORT) ""
 
-# Fill this
-set ::env(CLOCK_PERIOD) "10"
-set ::env(CLOCK_PORT) "clk"
+# force minimum die size
+set ::env(PL_SKIP_INITIAL_PLACEMENT) 1
+set ::env(PL_RANDOM_GLB_PLACEMENT) 1
+set ::env(FP_SIZING) absolute
+set ::env(DIE_AREA) "0 0 34.165 54.885"
+set ::env(PL_TARGET_DENSITY) 0.75
+set ::env(FP_HORIZONTAL_HALO) 6
+set ::env(FP_VERTICAL_HALO) $::env(FP_HORIZONTAL_HALO)
 
 set filename $::env(DESIGN_DIR)/$::env(PDK)_$::env(STD_CELL_LIBRARY)_config.tcl
 if { [file exists $filename] == 1} {
