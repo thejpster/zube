@@ -28,6 +28,18 @@ async def reset(dut):
     dut.reset <= 0;
     await ClockCycles(dut.clk, 5)
 
+async def test_set(dut, value):
+    """
+    Test putting values into the flipflop.
+    """
+
+    dut.data_in <= value
+    dut.cs <= 1
+    await ClockCycles(dut.clk, 1)
+    dut.cs <= 1
+    await ClockCycles(dut.clk, 5)
+
+
 @cocotb.test()
 async def test_all(dut):
     """
@@ -44,3 +56,17 @@ async def test_all(dut):
 
     # output should be low at start
     assert dut.data_out == 0
+
+    await test_set(dut, 1)
+    assert dut.data_out == 1
+
+    await test_set(dut, 0)
+    assert dut.data_out == 0
+
+    await test_set(dut, 0)
+    assert dut.data_out == 0
+
+    await test_set(dut, 1)
+    assert dut.data_out == 1
+
+# End of file
