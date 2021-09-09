@@ -1,0 +1,8 @@
+<testsuites name="results">
+  <testsuite name="all" package="all">
+    <property name="random_seed" value="1631218362" />
+    <testcase name="test_all" classname="test.test_zero2asic" file="/home/jonathan/Documents/zero_to_asic/zero_to_asic/test/test_zero2asic.py" lineno="19" time="0.000141143798828125" sim_time_ns="1000000000" ratio_time="7084972972972.973">
+      <failure />
+    </testcase>
+  </testsuite>
+</testsuites>

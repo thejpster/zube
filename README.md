@@ -1,2 +1,4 @@
-# zero_to_asic
-My entry for MPW2 on the Zero to ASIC Training Course
+# theJPster's Zero to ASIC Entry
+
+My entry for MPW2 on the Zero to ASIC Training Course.
+
