@@ -30,3 +30,5 @@ module zero2asic (
 
 endmodule
 `default_nettype wire
+
+// End of file
