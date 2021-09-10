@@ -10,6 +10,7 @@ __copyright__ = "Copyright 2021, Jonathan 'theJPster' Pallant"
 
 import cocotb
 from cocotb.clock import Clock
+from cocotb.binary import BinaryValue
 from cocotb.triggers import RisingEdge, FallingEdge, ClockCycles
 import random
 
@@ -20,25 +21,74 @@ async def reset(dut):
     Reset the dut (device under test - our verilog module)
     """
     dut.clk <= 0
-    dut.cs <= 0
-    dut.data_in <= 0
-    dut.reset <= 1
+    dut.reg1_cs_b <= 1
+    dut.reg2_cs_b <= 1
+    dut.write_strobe_b <= 1
+    dut.read_strobe_b <= 1
+    dut.data_bus <= 0x00
 
+    dut.reset_b <= 0
     await ClockCycles(dut.clk, 5)
-    dut.reset <= 0;
+    dut.reset_b <= 1;
     await ClockCycles(dut.clk, 5)
 
-async def test_set(dut, value):
+async def test_set_reg1(dut, value):
     """
-    Test putting values into the flipflop.
+    Test putting values into register 1.
     """
 
-    dut.data_in <= value
-    dut.cs <= 1
+    dut.data_bus <= value
+    dut.reg1_cs_b <= 0
+    dut.write_strobe_b <= 0
+    await ClockCycles(dut.clk, 2)
+    dut.reg1_cs_b <= 1
+    dut.write_strobe_b <= 1
+    dut.data_bus <= BinaryValue("zzzzzzzz")
     await ClockCycles(dut.clk, 1)
-    dut.cs <= 1
-    await ClockCycles(dut.clk, 5)
 
+async def test_get_reg1(dut):
+    """
+    Test reading values from register 1.
+    """
+
+    dut.reg1_cs_b <= 0
+    dut.read_strobe_b <= 0
+    await ClockCycles(dut.clk, 3)
+    value = dut.data_bus.value
+    await ClockCycles(dut.clk, 2)
+    dut.reg1_cs_b <= 1
+    dut.read_strobe_b <= 1
+    await ClockCycles(dut.clk, 1)
+    return value
+
+async def test_set_reg2(dut, value):
+    """
+    Test putting values into register 2.
+    """
+
+    dut.data_bus <= value
+    dut.reg2_cs_b <= 0
+    dut.write_strobe_b <= 0
+    await ClockCycles(dut.clk, 2)
+    dut.reg2_cs_b <= 1
+    dut.write_strobe_b <= 1
+    dut.data_bus <= BinaryValue("zzzzzzzz")
+    await ClockCycles(dut.clk, 1)
+
+async def test_get_reg2(dut):
+    """
+    Test reading values from register 2.
+    """
+
+    dut.reg2_cs_b <= 0
+    dut.read_strobe_b <= 0
+    await ClockCycles(dut.clk, 3)
+    value = dut.data_bus.value
+    await ClockCycles(dut.clk, 2)
+    dut.reg2_cs_b <= 1
+    dut.read_strobe_b <= 1
+    await ClockCycles(dut.clk, 1)
+    return value
 
 @cocotb.test()
 async def test_all(dut):
@@ -50,23 +100,23 @@ async def test_all(dut):
     cocotb.fork(clock.start())
 
     await reset(dut)
-    assert dut.reset == 0
-    assert dut.cs == 0
-    assert dut.data_in == 0
 
-    # output should be low at start
-    assert dut.data_out == 0
+    # Check we can read/write registers
 
-    await test_set(dut, 1)
-    assert dut.data_out == 1
+    await test_set_reg1(dut, 0x10)
+    assert await test_get_reg1(dut) == 0x10
+    assert await test_get_reg2(dut) == 0x00
 
-    await test_set(dut, 0)
-    assert dut.data_out == 0
+    await test_set_reg2(dut, 0xFF)
+    assert await test_get_reg1(dut) == 0x10
+    assert await test_get_reg2(dut) == 0xFF
 
-    await test_set(dut, 0)
-    assert dut.data_out == 0
+    await test_set_reg1(dut, 0x01)
+    assert await test_get_reg1(dut) == 0x01
+    assert await test_get_reg2(dut) == 0xFF
 
-    await test_set(dut, 1)
-    assert dut.data_out == 1
+    await test_set_reg2(dut, 0x55)
+    assert await test_get_reg1(dut) == 0x01
+    assert await test_get_reg2(dut) == 0x55
 
 # End of file

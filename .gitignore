@@ -2,3 +2,5 @@ sim_build
 test/__pycache__
 results.xml
 runs
+zero2asic.vcd
+
