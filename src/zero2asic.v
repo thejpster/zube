@@ -83,7 +83,6 @@ module zero2asic #(
 			data_out_ready <= 1'b1;
 		end else begin
 			data_out_ready <= 1'b0;
-			buf_data_out <= 8'bzzzzzzzz;
 		end
 	end
 
