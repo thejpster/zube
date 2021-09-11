@@ -27,7 +27,7 @@ module zero2asic #(
 	reg[7:0] reg2_contents;
 
 	// Buffered output data
-	reg[7:0] sync_data_out;
+	reg[7:0] buf_data_out;
 
 	// Buffered input data
 	reg[7:0] sync_data_in;
@@ -40,6 +40,7 @@ module zero2asic #(
 
 	wire reg1_cs_b;
 	wire reg2_cs_b;
+	reg data_out_ready;
 
 	assign reg1_cs_b = ~(address_bus == BASE_ADDRESS);
 	assign reg2_cs_b = ~(address_bus == BASE_ADDRESS + 16'h0001);
@@ -57,6 +58,7 @@ module zero2asic #(
 			// Reset signal is low, so reset all state
 			reg1_contents <= 8'b00000000;
 			reg2_contents <= 8'b00000000;
+			data_out_ready <= 1'b0;
 		end else if (~sync_write_strobe_b) begin
 			// Write strobe has gone low, so grab value off data bus
 			if (~reg1_cs_b) begin
@@ -67,22 +69,27 @@ module zero2asic #(
 				// Update reg2
 				reg2_contents <= sync_data_in;
 			end
+			data_out_ready <= 1'b1;
 		end else if (~sync_read_strobe_b) begin
 			// Read strobe has gone low, so write value to data bus
 			if (~reg1_cs_b) begin
 				// Read out reg1
-				sync_data_out <= reg1_contents;
+				buf_data_out <= reg1_contents;
 			end
 			if (~reg2_cs_b) begin
 				// Read out reg2
-				sync_data_out <= reg2_contents;
+				buf_data_out <= reg2_contents;
 			end
+			data_out_ready <= 1'b1;
+		end else begin
+			data_out_ready <= 1'b0;
+			buf_data_out <= 8'bzzzzzzzz;
 		end
 	end
 
 	// Only drive the bus when required
-	assign bus_dir = reset_b && ~read_strobe_b && (~reg1_cs_b || ~reg2_cs_b);
-	assign data_bus = bus_dir ? sync_data_out : 8'bzzzzzzzz;
+	assign bus_dir = reset_b && ~read_strobe_b && (~reg1_cs_b || ~reg2_cs_b) && data_out_ready;
+	assign data_bus = bus_dir ? buf_data_out : 8'bzzzzzzzz;
 
 endmodule
 `default_nettype wire
