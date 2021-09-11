@@ -8,3 +8,5 @@ Currently we have two 8-bit registers on an 8-bit data bus. There are read/write
 * The cocotb tests are in `test/test_zero2asic.v`
 * You can run the cocotb tests with `./test.sh`
 * You can harden using openLANE with `./harden.sh`
+* You can load `zero2asic.qpf` in Quartus Studio
+
