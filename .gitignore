@@ -3,6 +3,7 @@ fpga_build
 db
 incremental_db
 simulation
+output_files
 test/__pycache__
 results.xml
 runs
