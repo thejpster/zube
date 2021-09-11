@@ -1,0 +1,26 @@
+[*]
+[*] GTKWave Analyzer v3.3.104 (w)1999-2020 BSI
+[*] Sat Sep 11 15:49:20 2021
+[*]
+[dumpfile] "zero2asic.vcd"
+[dumpfile_mtime] "Sat Sep 11 15:47:39 2021"
+[dumpfile_size] 3051
+[savefile] "zero2asic.gtkw"
+[timestart] 0
+[size] 2560 1536
+[pos] -1 -1
+*-15.868866 120000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[sst_width] 290
+[signals_width] 289
+[sst_expanded] 1
+[sst_vpaned_height] 462
+@29
+zero2asic.clk
+@22
+zero2asic.address_bus[15:0]
+zero2asic.data_bus[7:0]
+@28
+zero2asic.write_strobe_b
+zero2asic.read_strobe_b
+[pattern_trace] 1
+[pattern_trace] 0
