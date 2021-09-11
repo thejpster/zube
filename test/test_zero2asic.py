@@ -20,72 +20,43 @@ async def reset(dut):
     """
     Reset the dut (device under test - our verilog module)
     """
+
+    # Defaults for all input signals
     dut.clk <= 0
-    dut.reg1_cs_b <= 1
-    dut.reg2_cs_b <= 1
+    dut.address_bus <= 0x0000
     dut.write_strobe_b <= 1
     dut.read_strobe_b <= 1
     dut.data_bus <= 0x00
 
+    # Strobe the reset line
     dut.reset_b <= 0
     await ClockCycles(dut.clk, 5)
     dut.reset_b <= 1;
     await ClockCycles(dut.clk, 5)
 
-async def test_set_reg1(dut, value):
+async def test_set_reg(dut, addr, value):
     """
-    Test putting values into register 1.
+    Test putting values into the given address.
     """
 
+    dut.address_bus <= addr
     dut.data_bus <= value
-    dut.reg1_cs_b <= 0
     dut.write_strobe_b <= 0
     await ClockCycles(dut.clk, 2)
-    dut.reg1_cs_b <= 1
     dut.write_strobe_b <= 1
     dut.data_bus <= BinaryValue("zzzzzzzz")
     await ClockCycles(dut.clk, 1)
 
-async def test_get_reg1(dut):
+async def test_get_reg(dut, addr):
     """
-    Test reading values from register 1.
+    Test reading values from the given address.
     """
 
-    dut.reg1_cs_b <= 0
+    dut.address_bus <= addr
     dut.read_strobe_b <= 0
     await ClockCycles(dut.clk, 3)
     value = dut.data_bus.value
     await ClockCycles(dut.clk, 1)
-    dut.reg1_cs_b <= 1
-    dut.read_strobe_b <= 1
-    await ClockCycles(dut.clk, 1)
-    return value
-
-async def test_set_reg2(dut, value):
-    """
-    Test putting values into register 2.
-    """
-
-    dut.data_bus <= value
-    dut.reg2_cs_b <= 0
-    dut.write_strobe_b <= 0
-    await ClockCycles(dut.clk, 2)
-    dut.reg2_cs_b <= 1
-    dut.write_strobe_b <= 1
-    dut.data_bus <= BinaryValue("zzzzzzzz")
-    await ClockCycles(dut.clk, 1)
-
-async def test_get_reg2(dut):
-    """
-    Test reading values from register 2.
-    """
-
-    dut.reg2_cs_b <= 0
-    dut.read_strobe_b <= 0
-    await ClockCycles(dut.clk, 3)
-    value = dut.data_bus.value
-    await ClockCycles(dut.clk, 1)
-    dut.reg2_cs_b <= 1
     dut.read_strobe_b <= 1
     await ClockCycles(dut.clk, 1)
     return value
@@ -102,21 +73,23 @@ async def test_all(dut):
     await reset(dut)
 
     # Check we can read/write registers
+    reg1_address = dut.BASE_ADDRESS.value
+    reg2_address = reg1_address + 1
 
-    await test_set_reg1(dut, 0x10)
-    assert await test_get_reg1(dut) == 0x10
-    assert await test_get_reg2(dut) == 0x00
+    await test_set_reg(dut, reg1_address, 0x10)
+    assert await test_get_reg(dut, reg1_address) == 0x10
+    assert await test_get_reg(dut, reg2_address) == 0x00
 
-    await test_set_reg2(dut, 0xFF)
-    assert await test_get_reg1(dut) == 0x10
-    assert await test_get_reg2(dut) == 0xFF
+    await test_set_reg(dut, reg2_address, 0xFF)
+    assert await test_get_reg(dut, reg1_address) == 0x10
+    assert await test_get_reg(dut, reg2_address) == 0xFF
 
-    await test_set_reg1(dut, 0x01)
-    assert await test_get_reg1(dut) == 0x01
-    assert await test_get_reg2(dut) == 0xFF
+    await test_set_reg(dut, reg1_address, 0x01)
+    assert await test_get_reg(dut, reg1_address) == 0x01
+    assert await test_get_reg(dut, reg2_address) == 0xFF
 
-    await test_set_reg2(dut, 0x55)
-    assert await test_get_reg1(dut) == 0x01
-    assert await test_get_reg2(dut) == 0x55
+    await test_set_reg(dut, reg2_address, 0x55)
+    assert await test_get_reg(dut, reg1_address) == 0x01
+    assert await test_get_reg(dut, reg2_address) == 0x55
 
 # End of file

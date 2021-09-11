@@ -8,17 +8,17 @@
 
 `default_nettype none
 `timescale 1ns/1ns
-module zero2asic (
+module zero2asic #(
+    parameter BASE_ADDRESS = 16'hA000
+)(
 	input clk,
 	input reset_b,
-	input reg1_cs_b,
-	input reg2_cs_b,
 	input write_strobe_b,
 	input read_strobe_b,
 	inout[7:0] data_bus,
+	input [15:0] address_bus,
 	output bus_dir
 	);
-
 
 	// Register Number 1
 	reg[7:0] reg1_contents;
@@ -37,6 +37,12 @@ module zero2asic (
 
     // Buffered read strobe
     reg sync_read_strobe_b;
+
+	wire reg1_cs_b;
+	wire reg2_cs_b;
+
+	assign reg1_cs_b = ~(address_bus == BASE_ADDRESS);
+	assign reg2_cs_b = ~(address_bus == BASE_ADDRESS + 16'h0001);
 
 	always @(posedge clk) begin
 		// Sample incoming signals with our high speed clock
