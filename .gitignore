@@ -1,7 +1,11 @@
 sim_build
 fpga_build
+db
+incremental_db
+simulation
 test/__pycache__
 results.xml
 runs
 zero2asic.vcd
+*.rpt
 
