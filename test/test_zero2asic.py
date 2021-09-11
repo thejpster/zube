@@ -55,7 +55,7 @@ async def test_get_reg1(dut):
     dut.read_strobe_b <= 0
     await ClockCycles(dut.clk, 3)
     value = dut.data_bus.value
-    await ClockCycles(dut.clk, 2)
+    await ClockCycles(dut.clk, 1)
     dut.reg1_cs_b <= 1
     dut.read_strobe_b <= 1
     await ClockCycles(dut.clk, 1)
@@ -84,7 +84,7 @@ async def test_get_reg2(dut):
     dut.read_strobe_b <= 0
     await ClockCycles(dut.clk, 3)
     value = dut.data_bus.value
-    await ClockCycles(dut.clk, 2)
+    await ClockCycles(dut.clk, 1)
     dut.reg2_cs_b <= 1
     dut.read_strobe_b <= 1
     await ClockCycles(dut.clk, 1)
