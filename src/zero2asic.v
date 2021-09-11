@@ -15,7 +15,8 @@ module zero2asic (
 	input reg2_cs_b,
 	input write_strobe_b,
 	input read_strobe_b,
-	inout[7:0] data_bus
+	inout[7:0] data_bus,
+	output bus_dir
 	);
 
 
@@ -37,14 +38,12 @@ module zero2asic (
     // Buffered read strobe
     reg sync_read_strobe_b;
 
-    wire bus_dir;
-
 	always @(posedge clk) begin
 		// Sample incoming signals with our high speed clock
 		// Helps avoid metastability, by keeping everything ticking along with the high speed clock
-		sync_write_strobe_b = write_strobe_b;
-		sync_read_strobe_b = read_strobe_b;
-		sync_data_in = data_bus;
+		sync_write_strobe_b <= write_strobe_b;
+		sync_read_strobe_b <= read_strobe_b;
+		sync_data_in <= data_bus;
 	end
 
 	always @(posedge clk) begin
