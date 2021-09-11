@@ -1,4 +1,5 @@
 sim_build
+fpga_build
 test/__pycache__
 results.xml
 runs
