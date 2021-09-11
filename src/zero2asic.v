@@ -38,12 +38,9 @@ module zero2asic #(
     // Buffered read strobe
     reg sync_read_strobe_b;
 
-	wire reg1_cs_b;
-	wire reg2_cs_b;
+	reg reg1_cs_b;
+	reg reg2_cs_b;
 	reg data_out_ready;
-
-	assign reg1_cs_b = ~(address_bus == BASE_ADDRESS);
-	assign reg2_cs_b = ~(address_bus == BASE_ADDRESS + 16'h0001);
 
 	always @(posedge clk) begin
 		// Sample incoming signals with our high speed clock
@@ -51,6 +48,8 @@ module zero2asic #(
 		sync_write_strobe_b <= write_strobe_b;
 		sync_read_strobe_b <= read_strobe_b;
 		sync_data_in <= data_bus;
+		reg1_cs_b <= ~(address_bus == BASE_ADDRESS);
+		reg2_cs_b <= ~(address_bus == BASE_ADDRESS + 16'h0001);
 	end
 
 	always @(posedge clk) begin
@@ -75,8 +74,7 @@ module zero2asic #(
 			if (~reg1_cs_b) begin
 				// Read out reg1
 				buf_data_out <= reg1_contents;
-			end
-			if (~reg2_cs_b) begin
+			end else if (~reg2_cs_b) begin
 				// Read out reg2
 				buf_data_out <= reg2_contents;
 			end
