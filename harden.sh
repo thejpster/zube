@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # Set this to your project name
-PROJECT_NAME=zero2asic
+PROJECT_NAME=zube
 
 # Get the dir of this script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Runs the cocotb tests on zero2asic
+# Runs the cocotb tests on zube
 #
 # Copyright (c) 2021, Jonathan 'theJPster' Pallant
 #
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-PROJECT=zero2asic
+PROJECT=zube
 
 COCOTB_PREFIX=$(cocotb-config --prefix)
 

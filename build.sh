@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Builds zero2asic for a Terasic DE10-Lite
+# Builds zube for a Terasic DE10-Lite
 #
 # Copyright (c) 2021, Jonathan 'theJPster' Pallant
 #
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-PROJECT=zero2asic
+PROJECT=zube
 
 mkdir -p fpga_build
 

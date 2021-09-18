@@ -8,7 +8,7 @@
 
 `default_nettype none
 `timescale 1ns/1ns
-module zero2asic #(
+module zube #(
     parameter BASE_ADDRESS = 16'hA000
 )(
 	input clk,

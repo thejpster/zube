@@ -1,7 +1,7 @@
 """
 # Test Bench for JGP's Zero2ASIC project
 
-This is the test bench for `zero2asic` module in `src/zero2asic.v`.
+This is the test bench for `zube` module in `src/zube.v`.
 """
 
 __author__ = "Jonathan 'theJPster' Pallant"

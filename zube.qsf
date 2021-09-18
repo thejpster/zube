@@ -26,7 +26,7 @@
 # Notes:
 #
 # 1) The default values for assignments are stored in the file:
-#		zero2asic_assignment_defaults.qdf
+#		zube_assignment_defaults.qdf
 #    If this file doesn't exist, see file:
 #		assignment_defaults.qdf
 #
@@ -39,11 +39,11 @@
 
 set_global_assignment -name FAMILY "MAX 10"
 set_global_assignment -name DEVICE 10M50DAF484C7G
-set_global_assignment -name TOP_LEVEL_ENTITY zero2asic
+set_global_assignment -name TOP_LEVEL_ENTITY zube
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 20.1.1
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "21:33:34  SEPTEMBER 11, 2021"
 set_global_assignment -name LAST_QUARTUS_VERSION "20.1.1 Standard Edition"
-set_global_assignment -name VERILOG_FILE src/zero2asic.v
+set_global_assignment -name VERILOG_FILE src/zube.v
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 256
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0

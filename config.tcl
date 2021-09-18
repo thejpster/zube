@@ -1,5 +1,5 @@
 # User config
-set ::env(DESIGN_NAME) zero2asic
+set ::env(DESIGN_NAME) zube
 
 # Change if needed
 set ::env(VERILOG_FILES) [glob $::env(DESIGN_DIR)/src/*.v]
