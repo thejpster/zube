@@ -28,7 +28,7 @@ async def reset(dut):
     dut.address_bus <= 0x0000
     dut.write_strobe_b <= 1
     dut.read_strobe_b <= 1
-    dut.data_bus <= 0x00
+    dut.data_bus_in <= 0x00
 
     # Strobe the reset line
     dut.reset_b <= 0
@@ -42,11 +42,11 @@ async def test_set_reg(dut, addr, value):
     """
 
     dut.address_bus <= addr
-    dut.data_bus <= value
+    dut.data_bus_in <= value
     dut.write_strobe_b <= 0
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
     dut.write_strobe_b <= 1
-    dut.data_bus <= BinaryValue("zzzzzzzz")
+    dut.data_bus_in <= BinaryValue("zzzzzzzz")
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
 
 async def test_get_reg(dut, addr):
@@ -57,7 +57,8 @@ async def test_get_reg(dut, addr):
     dut.address_bus <= addr
     dut.read_strobe_b <= 0
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
-    value = dut.data_bus.value
+    value = dut.data_bus_out.value
+    assert dut.bus_dir == 1
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
     dut.read_strobe_b <= 1
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)

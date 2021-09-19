@@ -15,8 +15,9 @@ module zube #(
 	input reset_b,
 	input write_strobe_b,
 	input read_strobe_b,
-	inout[7:0] data_bus,
 	input [15:0] address_bus,
+	input[7:0] data_bus_in,
+	output[7:0] data_bus_out,
 	output bus_dir
 	);
 
@@ -47,7 +48,7 @@ module zube #(
 		// Helps avoid metastability, by keeping everything ticking along with the high speed clock
 		sync_write_strobe_b <= write_strobe_b;
 		sync_read_strobe_b <= read_strobe_b;
-		sync_data_in <= data_bus;
+		sync_data_in <= data_bus_in;
 		reg1_cs_b <= ~(address_bus == BASE_ADDRESS);
 		reg2_cs_b <= ~(address_bus == BASE_ADDRESS + 16'h0001);
 	end
@@ -86,7 +87,7 @@ module zube #(
 
 	// Only drive the bus when required
 	assign bus_dir = reset_b && ~read_strobe_b && (~reg1_cs_b || ~reg2_cs_b) && data_out_ready;
-	assign data_bus = bus_dir ? buf_data_out : 8'bzzzzzzzz;
+	assign data_bus_out = buf_data_out;
 
 endmodule
 `default_nettype wire
