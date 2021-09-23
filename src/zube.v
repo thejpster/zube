@@ -58,8 +58,8 @@ module zube(
 	data_register status_out(.clk(clk), .reset(~reset_b), .write_strobe(status_out_cs), .data_in(sync_z80_data_bus_in), .data_out(status_out_contents));
 
 	// SoC to Z80
-	data_register data_in(.clk(clk), .reset(~reset_b), .write_strobe(data_in_cs), .data_in(sync_z80_data_bus_in), .data_out(data_in_contents));
-	data_register status_in(.clk(clk), .reset(~reset_b), .write_strobe(status_in_cs), .data_in(sync_z80_data_bus_in), .data_out(status_in_contents));
+	data_register data_in(.clk(clk), .reset(~reset_b), .write_strobe(data_in_cs), .data_in(8'h00), .data_out(data_in_contents));
+	data_register status_in(.clk(clk), .reset(~reset_b), .write_strobe(status_in_cs), .data_in(8'h00), .data_out(status_in_contents));
 
 	assign base_address = 16'h80;
 
