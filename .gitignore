@@ -7,6 +7,6 @@ output_files
 test/__pycache__
 results.xml
 runs
-zube.vcd
+*.vcd
 *.rpt
 

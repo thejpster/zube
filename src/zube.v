@@ -8,86 +8,96 @@
 
 `default_nettype none
 `timescale 1ns/1ns
-module zube #(
-    parameter BASE_ADDRESS = 16'hA000
-)(
+module zube(
 	input clk,
 	input reset_b,
-	input write_strobe_b,
-	input read_strobe_b,
-	input [15:0] address_bus,
-	input[7:0] data_bus_in,
-	output[7:0] data_bus_out,
-	output bus_dir
+	input z80_write_strobe_b,
+	input z80_read_strobe_b,
+	input [7:0] z80_address_bus,
+	input[7:0] z80_data_bus_in,
+	output[7:0] z80_data_bus_out,
+	output z80_bus_dir
 	);
 
-	// Register Number 1
-	reg[7:0] reg1_contents;
+    // Buffered data bus
+    reg[7:0] sync_z80_data_bus_in;
+    reg[7:0] sync_z80_data_bus_out;
 
-	// Register Number 2
-	reg[7:0] reg2_contents;
+    // Write to Status OUT from Z80
+	reg status_out_cs;
+    // Write to Status IN from SoC
+	reg status_in_cs;
+    // Write to Data OUT from Z80
+	reg data_out_cs;
+    // Write to Data IN from Soc
+	reg data_in_cs;
 
-	// Buffered output data
-	reg[7:0] buf_data_out;
-
-	// Buffered input data
-	reg[7:0] sync_data_in;
-
-	// Buffered write strobe
-    reg sync_write_strobe_b;
-
-    // Buffered read strobe
-    reg sync_read_strobe_b;
-
-	reg reg1_cs_b;
-	reg reg2_cs_b;
+	// Signals when we can drive the Z80 data bus
 	reg data_out_ready;
 
-	always @(posedge clk) begin
-		// Sample incoming signals with our high speed clock
-		// Helps avoid metastability, by keeping everything ticking along with the high speed clock
-		sync_write_strobe_b <= write_strobe_b;
-		sync_read_strobe_b <= read_strobe_b;
-		sync_data_in <= data_bus_in;
-		reg1_cs_b <= ~(address_bus == BASE_ADDRESS);
-		reg2_cs_b <= ~(address_bus == BASE_ADDRESS + 16'h0001);
-	end
+	// Our base address
+	reg[7:0] base_address;
+
+	// What's in the Data OUT Register 
+	wire[7:0] data_out_contents;
+
+	// What's in the Data In Register 
+	wire[7:0] data_in_contents;
+
+	// What's in the Status In Register
+	wire[7:0] status_in_contents;
+
+	// What's in the Status Out Register
+	wire[7:0] status_out_contents;
+
+	// Are we driving the Z80 bus?
+	reg bus_dir;
+
+	// Z80 to SoC
+	data_register data_out(.clk(clk), .reset(~reset_b), .write_strobe(data_out_cs), .data_in(sync_z80_data_bus_in), .data_out(data_out_contents));
+	data_register status_out(.clk(clk), .reset(~reset_b), .write_strobe(status_out_cs), .data_in(sync_z80_data_bus_in), .data_out(status_out_contents));
+
+	// SoC to Z80
+	data_register data_in(.clk(clk), .reset(~reset_b), .write_strobe(data_in_cs), .data_in(sync_z80_data_bus_in), .data_out(data_in_contents));
+	data_register status_in(.clk(clk), .reset(~reset_b), .write_strobe(status_in_cs), .data_in(sync_z80_data_bus_in), .data_out(status_in_contents));
+
+	assign base_address = 16'h80;
 
 	always @(posedge clk) begin
 		if (~reset_b) begin
-			// Reset signal is low, so reset all state
-			reg1_contents <= 8'b00000000;
-			reg2_contents <= 8'b00000000;
+			// Reset state here
 			data_out_ready <= 1'b0;
-		end else if (~sync_write_strobe_b) begin
-			// Write strobe has gone low, so grab value off data bus
-			if (~reg1_cs_b) begin
-				// Update reg1
-				reg1_contents <= sync_data_in;
-			end
-			if (~reg2_cs_b) begin
-				// Update reg2
-				reg2_contents <= sync_data_in;
-			end
-			data_out_ready <= 1'b1;
-		end else if (~sync_read_strobe_b) begin
-			// Read strobe has gone low, so write value to data bus
-			if (~reg1_cs_b) begin
-				// Read out reg1
-				buf_data_out <= reg1_contents;
-			end else if (~reg2_cs_b) begin
-				// Read out reg2
-				buf_data_out <= reg2_contents;
-			end
-			data_out_ready <= 1'b1;
+			bus_dir <= 1'b0;
+			status_out_cs <= 1'b0;
+			status_in_cs <= 1'b0;
+			data_out_cs <= 1'b0;
+			data_in_cs <= 1'b0;
+			sync_z80_data_bus_out <= 8'h00;
 		end else begin
-			data_out_ready <= 1'b0;
+			// Sample slow incoming signals with our high speed clock
+			// Helps avoid metastability, by keeping everything ticking along with the high speed clock
+			sync_z80_data_bus_in <= z80_data_bus_in;
+			data_out_cs <= (z80_address_bus == base_address) && ~z80_write_strobe_b;
+			status_out_cs <= (z80_address_bus == base_address + 16'h0001) && ~z80_write_strobe_b;
+			if ((z80_address_bus == base_address) && ~z80_read_strobe_b && ~data_out_ready) begin
+				// Read Data In
+				data_out_ready <= 1'b1;
+				sync_z80_data_bus_out <= data_in_contents;
+			end else if ((z80_address_bus == (base_address + 1)) && ~z80_read_strobe_b && ~data_out_ready) begin
+				// Read Status
+				data_out_ready <= 1'b1;
+				sync_z80_data_bus_out <= status_in_contents;
+			end else if (data_out_ready && z80_read_strobe_b) begin
+				// Read strobe released - we can no longer drive the bus
+				data_out_ready <= 1'b0;
+			end
+			// Only drive the Z80 bus when we're not in reset, and there's an active strobe, and it's one of our addresses
+			bus_dir <= reset_b && data_out_ready;
 		end
 	end
 
-	// Only drive the bus when required
-	assign bus_dir = reset_b && ~read_strobe_b && (~reg1_cs_b || ~reg2_cs_b) && data_out_ready;
-	assign data_bus_out = buf_data_out;
+	assign z80_bus_dir = bus_dir;
+	assign z80_data_bus_out = sync_z80_data_bus_out;
 
 endmodule
 `default_nettype wire

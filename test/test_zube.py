@@ -25,10 +25,10 @@ async def reset(dut):
 
     # Defaults for all input signals
     dut.clk <= 0
-    dut.address_bus <= 0x0000
-    dut.write_strobe_b <= 1
-    dut.read_strobe_b <= 1
-    dut.data_bus_in <= 0x00
+    dut.z80_address_bus <= 0x0000
+    dut.z80_write_strobe_b <= 1
+    dut.z80_read_strobe_b <= 1
+    dut.z80_data_bus_in <= 0x00
 
     # Strobe the reset line
     dut.reset_b <= 0
@@ -41,27 +41,27 @@ async def test_set_reg(dut, addr, value):
     Test putting values into the given address.
     """
 
-    dut.address_bus <= addr
-    dut.data_bus_in <= value
-    dut.write_strobe_b <= 0
+    dut.z80_address_bus <= addr
+    dut.z80_data_bus_in <= value
+    dut.z80_write_strobe_b <= 0
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
-    dut.write_strobe_b <= 1
-    dut.data_bus_in <= BinaryValue("zzzzzzzz")
+    dut.z80_write_strobe_b <= 1
+    dut.z80_data_bus_in <= BinaryValue("zzzzzzzz")
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
 
 async def test_get_reg(dut, addr):
     """
-    Test reading values from the given address.
+    Test getting values from the given address.
     """
 
-    dut.address_bus <= addr
-    dut.read_strobe_b <= 0
+    dut.z80_address_bus <= addr
+    dut.z80_read_strobe_b <= 0
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
-    value = dut.data_bus_out.value
-    assert dut.bus_dir == 1
+    value = dut.z80_data_bus_out.value
+    assert dut.z80_bus_dir == 1
+    dut.z80_read_strobe_b <= 1
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
-    dut.read_strobe_b <= 1
-    await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
+    assert dut.z80_bus_dir == 0
     return value
 
 @cocotb.test()
@@ -76,23 +76,28 @@ async def test_all(dut):
     await reset(dut)
 
     # Check we can read/write registers
-    reg1_address = dut.BASE_ADDRESS.value
-    reg2_address = reg1_address + 1
+    data_addr = dut.base_address.value
+    status_addr = data_addr + 1
 
-    await test_set_reg(dut, reg1_address, 0x10)
-    assert await test_get_reg(dut, reg1_address) == 0x10
-    assert await test_get_reg(dut, reg2_address) == 0x00
+    # Drive registers from the Z80 side
+    await test_set_reg(dut, status_addr, 0x10)
+    assert dut.status_out_contents == 0x10
+    assert dut.data_out_contents == 0x00
 
-    await test_set_reg(dut, reg2_address, 0xFF)
-    assert await test_get_reg(dut, reg1_address) == 0x10
-    assert await test_get_reg(dut, reg2_address) == 0xFF
+    await test_set_reg(dut, data_addr, 0xFF)
+    assert dut.status_out_contents.value == 0x10
+    assert dut.data_out_contents == 0xFF
 
-    await test_set_reg(dut, reg1_address, 0x01)
-    assert await test_get_reg(dut, reg1_address) == 0x01
-    assert await test_get_reg(dut, reg2_address) == 0xFF
+    await test_set_reg(dut, status_addr, 0x01)
+    assert dut.status_out_contents.value == 0x01
+    assert dut.data_out_contents == 0xFF
 
-    await test_set_reg(dut, reg2_address, 0x55)
-    assert await test_get_reg(dut, reg1_address) == 0x01
-    assert await test_get_reg(dut, reg2_address) == 0x55
+    await test_set_reg(dut, data_addr, 0x55)
+    assert dut.status_out_contents.value == 0x01
+    assert dut.data_out_contents == 0x55
+
+    # Read some registers from the Z80 side
+    assert await test_get_reg(dut, data_addr) == 0x00
+    assert await test_get_reg(dut, status_addr) == 0x00
 
 # End of file

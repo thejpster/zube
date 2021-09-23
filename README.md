@@ -15,23 +15,58 @@ can implement:
 * An SD Card interface (using the housekeeping SPI)
 * A GPIO interface
 
-It works like this:
+## Functionality
 
-* The PicoRV32 sets the "start address" and "end address".
+The SoC exposes two I/O addresses on the Z80 bus - DATA and STATUS. These
+correspond to two outbound mailboxes, and two inbound mailboxes.
+
+| Address      | Direction | Register   |
+|:-------------|:----------|:-----------|
+| Z80_BASE     | Write     | Data OUT   |
+| Z80_BASE     | Read      | Data IN    |
+| Z80_BASE + 1 | Write     | Status OUT |
+| Z80_BASE + 1 | Read      | Status IN  |
+
+The term *OUT* means Z80-to-SoC. The term *IN* means SoC-to-Z80.
+
+The SoC also sits on two addresses on the Wishbone bus:
+
+| Address       | Direction | Register   |
+|:--------------|:----------|:-----------|
+| WISH_BASE     | Write     | Data IN    |
+| WISH_BASE     | Read      | Data OUT   |
+| WISH_BASE + 1 | Write     | Status IN  |
+| WISH_BASE + 1 | Read      | Status OUT |
+
+* The PicoRV32 sets the 16-bit "start address" for the two Z80 registers (the wishbone address is fixed).
 * The SoC sits on the 8080 16-bit address bus and 8-bit data bus.
-* When a write occurs in the given range:
-    * the 8-bit register address is latched
+* When a Z80 write occurs to a mailbox:
     * the 8 bit data is latched
-    * an IRQ is raised on the PicoRV32
-* When a read occurs in the given range:
-    * the 8-bit register address is latched
-    * the wait-state pin is set
-    * an IRQ is raised on the PicoRV32
-    * the PicoRV32 can write back an 8-bit value
-    * the wait-state pin is cleared
+    * an IRQ is raised on the PicoRV32, which can then read the mailbox
+* When a Z80 read occurs on a mailbox:
+    * The contents of the register is provided
+    * an IRQ is raised on the PicoRV32, which can then write to the mailbox again
 
-Only I/O writes are supported - it doesn't make sense to emulate memory
-as the address range is so limited.
+The meaning of the bits in the "Status OUT" and "Status IN" registers is defined by firmware on the PicoRV32.
+
+## Example
+
+Here's an example of some (mythical) UART firmware for the PicoRV32:
+
+```
+Z80: Write 0x01 to Status OUT  -- Tell SoC to enable UART mode
+SoC: Read 0x01 from Status OUT -- Enable UART mode
+Z80: Write 0x65 to Data OUT    -- Send '0x65' to SoC
+SoC: Read 0x65 from Data OUT   -- SoC copies value to UART peripheral
+Z80: Read 0x00 from Status     -- No UART data ready
+Z80: Read 0x00 from Status     -- No UART data ready
+SoC: Write 0x20 to Data IN     -- Store UART data received
+SoC: Write 0x01 to Status IN   -- Note UART data ready
+Z80: Read 0x01 from Status IN  -- See that UART data ready
+Z80: Read 0x20 from Data IN    -- Read data received from UART
+SoC: Write 0x00 to Status IN   -- Note no more UART data ready
+Z80: Read 0x00 from Status IN  -- See that no more UART data ready
+```
 
 ## 8080 bus
 
