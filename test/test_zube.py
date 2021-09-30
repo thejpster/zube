@@ -76,7 +76,7 @@ async def test_all(dut):
     await reset(dut)
 
     # Check we can read/write registers
-    data_addr = dut.base_address.value
+    data_addr = dut.z80_base_address.value
     status_addr = data_addr + 1
 
     # Drive registers from the Z80 side
