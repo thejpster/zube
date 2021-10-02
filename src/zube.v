@@ -104,8 +104,8 @@ module zube #(
 	data_register status_out(.clk(clk), .reset(~reset_b), .write_strobe(status_out_cs), .data_in(sync_z80_data_bus_in), .data_out(status_out_contents));
 
 	// SoC to Z80
-	data_register data_in(.clk(clk), .reset(~reset_b), .write_strobe(data_in_cs), .data_in(8'h00), .data_out(data_in_contents));
-	data_register status_in(.clk(clk), .reset(~reset_b), .write_strobe(status_in_cs), .data_in(8'h00), .data_out(status_in_contents));
+	data_register data_in(.clk(clk), .reset(~reset_b), .write_strobe(data_in_cs), .data_in(wb_data_in[7:0]), .data_out(data_in_contents));
+	data_register status_in(.clk(clk), .reset(~reset_b), .write_strobe(status_in_cs), .data_in(wb_data_in[7:0]), .data_out(status_in_contents));
 
 	// Never hold up the Wishbone bus
 	assign wb_stall_out = 0;
