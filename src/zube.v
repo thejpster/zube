@@ -11,7 +11,7 @@
 module zube #(
 	// Wishbone base address
 	parameter   [31:0]  BASE_ADDRESS    = 32'h3000_0000,
-	parameter   [7:0]   Z80_ADDRESS     = BASE_ADDRESS,
+	parameter   [31:0]  Z80_ADDRESS     = BASE_ADDRESS,
 	parameter   [31:0]  DATA_ADDRESS    = BASE_ADDRESS + 4,
 	parameter   [31:0]  STATUS_ADDRESS  = BASE_ADDRESS + 8
 ) (
