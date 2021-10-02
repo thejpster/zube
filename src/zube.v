@@ -169,7 +169,7 @@ module zube #(
 			end
 
 			// Always ack wishbone bus immediately
-			wb_ack_out <= (wb_stb_in && !wb_stall_out && (wb_addr_in == Z80_ADDRESS || wb_addr_in == DATA_ADDRESS || wb_addr_in == STATUS_ADDRESS));
+			wb_ack_out <= (wb_stb_in && !wb_stall_out && ((wb_addr_in == Z80_ADDRESS) || (wb_addr_in == DATA_ADDRESS) || (wb_addr_in == STATUS_ADDRESS)));
 
 		end
 	end
