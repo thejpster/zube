@@ -12,6 +12,7 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.binary import BinaryValue
 from cocotb.triggers import RisingEdge, FallingEdge, ClockCycles
+from cocotbext.wishbone.driver import WishboneMaster, WBOp
 import random
 
 HIGHSPEED_CLOCK = 50000000
@@ -36,7 +37,21 @@ async def reset(dut):
     dut.reset_b <= 1;
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK * 2)
 
-async def test_set_reg(dut, addr, value):
+async def test_wb_set(wbs, addr, value):
+    """
+    Test putting values into the given wishbone address.
+    """
+    await wbs.send_cycle([WBOp(addr, value)])
+
+async def test_wb_get(wbs, addr):
+    """
+    Test getting values from the given wishbone address.
+    """
+    res_list = await wbs.send_cycle([WBOp(addr)])
+    rvalues = [entry.datrd for entry in res_list]
+    return rvalues[0]
+
+async def test_z80_set(dut, addr, value):
     """
     Test putting values into the given address.
     """
@@ -49,7 +64,7 @@ async def test_set_reg(dut, addr, value):
     dut.z80_data_bus_in <= BinaryValue("zzzzzzzz")
     await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
 
-async def test_get_reg(dut, addr):
+async def test_z80_get(dut, addr):
     """
     Test getting values from the given address.
     """
@@ -73,31 +88,64 @@ async def test_all(dut):
 
     cocotb.fork(clock.start())
 
+    signals_dict = {
+        "cyc":  "cyc_in",
+        "stb":  "stb_in",
+        "we":   "we_in",
+        "adr":  "addr_in",
+        "datwr":"data_in",
+        "datrd":"data_out",
+        "ack":  "ack_out"
+    }
+    wbs = WishboneMaster(dut, "wb", dut.clk, width=32, timeout=10, signals_dict=signals_dict)
+
     await reset(dut)
 
+    # Set up our memory addresses for both sides
+    wb_z80base_addr = 0x3000_0000
+    wb_data_addr = 0x3000_0004
+    wb_status_addr = 0x3000_0008
+
+    z80_data_addr = await test_wb_get(wbs, wb_z80base_addr)
+    z80_status_addr = z80_data_addr + 1
+
     # Check we can read/write registers
-    data_addr = dut.z80_base_address.value
-    status_addr = data_addr + 1
 
     # Drive registers from the Z80 side
-    await test_set_reg(dut, status_addr, 0x10)
-    assert dut.status_out_contents == 0x10
-    assert dut.data_out_contents == 0x00
+    await test_z80_set(dut, z80_data_addr, 0x10)
+    assert await test_wb_get(wbs, wb_data_addr) == 0x10
+    assert await test_wb_get(wbs, wb_status_addr) == 0x00
 
-    await test_set_reg(dut, data_addr, 0xFF)
-    assert dut.status_out_contents.value == 0x10
-    assert dut.data_out_contents == 0xFF
+    await test_z80_set(dut, z80_status_addr, 0xFF)
+    assert await test_wb_get(wbs, wb_data_addr) == 0x10
+    assert await test_wb_get(wbs, wb_status_addr) == 0xFF
 
-    await test_set_reg(dut, status_addr, 0x01)
-    assert dut.status_out_contents.value == 0x01
-    assert dut.data_out_contents == 0xFF
+    await test_z80_set(dut, z80_data_addr, 0x01)
+    assert await test_wb_get(wbs, wb_data_addr) == 0x01
+    assert await test_wb_get(wbs, wb_status_addr) == 0xFF
 
-    await test_set_reg(dut, data_addr, 0x55)
-    assert dut.status_out_contents.value == 0x01
-    assert dut.data_out_contents == 0x55
+    await test_z80_set(dut, z80_status_addr, 0x55)
+    assert await test_wb_get(wbs, wb_data_addr) == 0x01
+    assert await test_wb_get(wbs, wb_status_addr) == 0x55
 
     # Read some registers from the Z80 side
-    assert await test_get_reg(dut, data_addr) == 0x00
-    assert await test_get_reg(dut, status_addr) == 0x00
+    assert await test_z80_get(dut, z80_data_addr) == 0x00
+    assert await test_z80_get(dut, z80_status_addr) == 0x00
+
+    await test_wb_set(wbs, wb_data_addr, 0x55)
+    assert await test_z80_get(dut, z80_data_addr) == 0x55
+    assert await test_z80_get(dut, z80_status_addr) == 0x00
+
+    await test_wb_set(wbs, wb_status_addr, 0xAA)
+    assert await test_z80_get(dut, z80_data_addr) == 0x55
+    assert await test_z80_get(dut, z80_status_addr) == 0xAA
+
+    await test_wb_set(wbs, wb_data_addr, 0x00)
+    assert await test_z80_get(dut, z80_data_addr) == 0x00
+    assert await test_z80_get(dut, z80_status_addr) == 0xAA
+
+    await test_wb_set(wbs, wb_status_addr, 0xFF)
+    assert await test_z80_get(dut, z80_data_addr) == 0x00
+    assert await test_z80_get(dut, z80_status_addr) == 0xFF
 
 # End of file
