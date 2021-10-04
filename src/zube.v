@@ -63,20 +63,27 @@ module zube #(
 	// reject incoming request
 	output wire wb_stall_out,
 	// outgoing data
-	output reg [31:0] wb_data_out
+	output reg [31:0] wb_data_out,
+
+	// IRQ to SoC when Data register has been written. Cleared on read.
+	output reg irq_data_out,
+	// IRQ to SoC when Status register has been written. Cleared on read.
+	output reg irq_status_out
+
+	// Note: There is no support for interrupts on the Z80 side!
 	);
 
 	// Buffered data bus. Sampled with the high speed clock.
 	reg[7:0] sync_z80_data_bus_in;
 
 	// Write to Status OUT from Z80
-	reg status_out_cs;
+	reg status_out_write_stb;
 	// Write to Status IN from SoC
-	reg status_in_cs;
+	reg status_in_write_stb;
 	// Write to Data OUT from Z80
-	reg data_out_cs;
+	reg data_out_write_stb;
 	// Write to Data IN from Soc
-	reg data_in_cs;
+	reg data_in_write_stb;
 
 	// Signals when we can drive the Z80 data bus
 	reg data_out_ready;
@@ -96,16 +103,13 @@ module zube #(
 	// What's in the Status Out Register
 	wire[7:0] status_out_contents;
 
-	// Are we driving the Z80 bus?
-	reg bus_dir;
-
 	// Z80 to SoC
-	data_register data_out(.clk(clk), .reset(~reset_b), .write_strobe(data_out_cs), .data_in(sync_z80_data_bus_in), .data_out(data_out_contents));
-	data_register status_out(.clk(clk), .reset(~reset_b), .write_strobe(status_out_cs), .data_in(sync_z80_data_bus_in), .data_out(status_out_contents));
+	data_register data_out(.clk(clk), .reset(~reset_b), .write_strobe(data_out_write_stb), .data_in(sync_z80_data_bus_in), .data_out(data_out_contents));
+	data_register status_out(.clk(clk), .reset(~reset_b), .write_strobe(status_out_write_stb), .data_in(sync_z80_data_bus_in), .data_out(status_out_contents));
 
 	// SoC to Z80
-	data_register data_in(.clk(clk), .reset(~reset_b), .write_strobe(data_in_cs), .data_in(wb_data_in[7:0]), .data_out(data_in_contents));
-	data_register status_in(.clk(clk), .reset(~reset_b), .write_strobe(status_in_cs), .data_in(wb_data_in[7:0]), .data_out(status_in_contents));
+	data_register data_in(.clk(clk), .reset(~reset_b), .write_strobe(data_in_write_stb), .data_in(wb_data_in[7:0]), .data_out(data_in_contents));
+	data_register status_in(.clk(clk), .reset(~reset_b), .write_strobe(status_in_write_stb), .data_in(wb_data_in[7:0]), .data_out(status_in_contents));
 
 	// Never hold up the Wishbone bus
 	assign wb_stall_out = 0;
@@ -114,36 +118,42 @@ module zube #(
 		if (~reset_b) begin
 			// Reset state here
 			data_out_ready <= 1'b0;
-			bus_dir <= 1'b0;
-			status_out_cs <= 1'b0;
-			status_in_cs <= 1'b0;
-			data_out_cs <= 1'b0;
-			data_in_cs <= 1'b0;
+			status_out_write_stb <= 1'b0;
+			status_in_write_stb <= 1'b0;
+			data_out_write_stb <= 1'b0;
+			data_in_write_stb <= 1'b0;
+			irq_data_out <= 1'b0;
+			irq_status_out <= 1'b0;
 			z80_data_bus_out <= 8'h00;
 			z80_base_address = 16'h80;
 		end else begin
 			// Sample slow incoming signals with our high speed clock
 			// Helps avoid metastability, by keeping everything ticking along with the high speed clock
 			sync_z80_data_bus_in <= z80_data_bus_in;
-			data_out_cs <= (z80_address_bus == z80_base_address) && ~z80_write_strobe_b;
-			status_out_cs <= (z80_address_bus == z80_base_address + 16'h0001) && ~z80_write_strobe_b;
+
+			data_out_write_stb <= (z80_address_bus == z80_base_address) && ~z80_write_strobe_b;
+			status_out_write_stb <= (z80_address_bus == z80_base_address + 16'h0001) && ~z80_write_strobe_b;
 
 			// Check for Z80 reads/writes
 
-			if ((z80_address_bus == z80_base_address) && ~z80_read_strobe_b && ~data_out_ready) begin
-				// Read Data In
+			if ( data_out_write_stb && z80_write_strobe_b ) begin
+				// A write to Data OUT has finished (because z80_write_strobe_b is high)
+				irq_data_out <= 1'b1;
+			end else if ( status_out_write_stb && z80_write_strobe_b ) begin
+				// A write to Status OUT has finished (because z80_write_strobe_b is high)
+				irq_status_out <= 1'b1;
+			end else if ((z80_address_bus == z80_base_address) && ~z80_read_strobe_b && ~data_out_ready) begin
+				// The Z80 is reading from Data IN
 				data_out_ready <= 1'b1;
 				z80_data_bus_out <= data_in_contents;
 			end else if ((z80_address_bus == (z80_base_address + 1)) && ~z80_read_strobe_b && ~data_out_ready) begin
-				// Read Status
+				// The Z80 is reading from Status IN
 				data_out_ready <= 1'b1;
 				z80_data_bus_out <= status_in_contents;
 			end else if (data_out_ready && z80_read_strobe_b) begin
 				// Read strobe released - we can no longer drive the bus
 				data_out_ready <= 1'b0;
 			end
-			// Only drive the Z80 bus when we're not in reset, and there's an active strobe, and it's one of our addresses
-			bus_dir <= reset_b && data_out_ready;
 
 			// Check for wishbone reads/writes
 
@@ -152,19 +162,24 @@ module zube #(
 				z80_base_address <= wb_data_in[7:0];
 			end
 			// Let register grab data off the wishbone bus
-			data_in_cs <= wb_stb_in && wb_cyc_in && wb_we_in && !wb_stall_out && (wb_addr_in == DATA_ADDRESS);
-			status_in_cs <= wb_stb_in && wb_cyc_in && wb_we_in && !wb_stall_out && (wb_addr_in == STATUS_ADDRESS);
+			data_in_write_stb <= wb_stb_in && wb_cyc_in && wb_we_in && !wb_stall_out && (wb_addr_in == DATA_ADDRESS);
+			status_in_write_stb <= wb_stb_in && wb_cyc_in && wb_we_in && !wb_stall_out && (wb_addr_in == STATUS_ADDRESS);
 
 			// Check for wishbone reads
 
 			if (wb_stb_in && wb_cyc_in && !wb_we_in && !wb_stall_out) begin
 				case (wb_addr_in)
-					Z80_ADDRESS:
+					Z80_ADDRESS: begin
 						wb_data_out <= {24'b0, z80_base_address};
-					DATA_ADDRESS:
+					end
+					DATA_ADDRESS: begin
 						wb_data_out <= {24'b0, data_out_contents};
-					STATUS_ADDRESS:
+						irq_data_out <= 1'b0;
+					end
+					STATUS_ADDRESS: begin
 						wb_data_out <= {24'b0, status_out_contents};
+						irq_status_out <= 1'b0;
+					end
 				endcase
 			end
 
@@ -174,7 +189,8 @@ module zube #(
 		end
 	end
 
-	assign z80_bus_dir = bus_dir;
+	// Only drive the Z80 bus when we're not in reset, and there's an active strobe, and it's one of our addresses
+	assign z80_bus_dir = data_out_ready;
 
 `ifdef FORMAL
 	default clocking @(posedge clk); endclocking
