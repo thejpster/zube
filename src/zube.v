@@ -192,15 +192,6 @@ module zube #(
 	// Only drive the Z80 bus when we're not in reset, and there's an active strobe, and it's one of our addresses
 	assign z80_bus_dir = data_out_ready;
 
-`ifdef FORMAL
-	default clocking @(posedge clk); endclocking
-	default disable iff (reset);
-
-	cyc:    assume property (i_wb_cyc |=> i_wb_cyc && o_wb_ack);
-	write:  cover property (##1 $rose(i_wb_stb) |-> ##[+] o_wb_data[3:0] == 4'b1010);
-	read:   cover property (##1 $rose(i_wb_stb) |-> ##[+] leds[7:0] == 8'b11110000);
-`endif
-
 endmodule
 `default_nettype wire
 
