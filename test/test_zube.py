@@ -29,7 +29,7 @@ async def reset(dut):
     dut.z80_address_bus <= 0x0000
     dut.z80_write_strobe_b <= 1
     dut.z80_read_strobe_b <= 1
-    dut.z80_data_bus_in <= 0x00
+    dut.z80_data_bus_in <= BinaryValue("zzzzzzzz")
 
     # Strobe the reset line
     dut.reset_b <= 0
