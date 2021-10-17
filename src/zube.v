@@ -75,8 +75,6 @@ module zube #(
 	input wire [31:0] wb_data_in,
 	// indicates the termination of a normal bus cycle by this device.
 	output reg wb_ack_out,
-	// reject incoming request
-	output wire wb_stall_out,
 	// outgoing data
 	output reg [31:0] wb_data_out,
 
@@ -126,9 +124,6 @@ module zube #(
 	data_register data_in(.clk(clk), .reset(~reset_b), .write_strobe(data_in_write_stb), .data_in(wb_data_in[7:0]), .data_out(data_in_contents));
 	data_register status_in(.clk(clk), .reset(~reset_b), .write_strobe(status_in_write_stb), .data_in(wb_data_in[7:0]), .data_out(status_in_contents));
 
-	// Never hold up the Wishbone bus
-	assign wb_stall_out = 0;
-
 	always @(posedge clk) begin
 		if (~reset_b) begin
 			// Reset state here
@@ -173,16 +168,16 @@ module zube #(
 			// Check for wishbone reads/writes
 
 			// Write Z80 base address
-			if (wb_stb_in && wb_cyc_in && wb_we_in && !wb_stall_out && wb_addr_in == Z80_ADDRESS) begin
+			if (wb_stb_in && wb_cyc_in && wb_we_in && wb_addr_in == Z80_ADDRESS) begin
 				z80_base_address <= wb_data_in[7:0];
 			end
 			// Let register grab data off the wishbone bus
-			data_in_write_stb <= wb_stb_in && wb_cyc_in && wb_we_in && !wb_stall_out && (wb_addr_in == DATA_ADDRESS);
-			status_in_write_stb <= wb_stb_in && wb_cyc_in && wb_we_in && !wb_stall_out && (wb_addr_in == STATUS_ADDRESS);
+			data_in_write_stb <= wb_stb_in && wb_cyc_in && wb_we_in && (wb_addr_in == DATA_ADDRESS);
+			status_in_write_stb <= wb_stb_in && wb_cyc_in && wb_we_in && (wb_addr_in == STATUS_ADDRESS);
 
 			// Check for wishbone reads
 
-			if (wb_stb_in && wb_cyc_in && !wb_we_in && !wb_stall_out) begin
+			if (wb_stb_in && wb_cyc_in && !wb_we_in) begin
 				case (wb_addr_in)
 					Z80_ADDRESS: begin
 						wb_data_out <= {24'b0, z80_base_address};
@@ -199,7 +194,7 @@ module zube #(
 			end
 
 			// Always ack wishbone bus immediately
-			wb_ack_out <= (wb_stb_in && !wb_stall_out && ((wb_addr_in == Z80_ADDRESS) || (wb_addr_in == DATA_ADDRESS) || (wb_addr_in == STATUS_ADDRESS)));
+			wb_ack_out <= (wb_stb_in && ((wb_addr_in == Z80_ADDRESS) || (wb_addr_in == DATA_ADDRESS) || (wb_addr_in == STATUS_ADDRESS)));
 
 		end
 	end
