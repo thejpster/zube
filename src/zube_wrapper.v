@@ -52,9 +52,9 @@ module zube_wrapper #(
     // Input
     input wire[27:0] io_in,
     // Output
-    input wire[27:0] io_out,
+    inout wire[27:0] io_out,
     // ~Output Enable
-    input wire[27:0] io_oeb,
+    inout wire[27:0] io_oeb,
 
     /**
      * Wishbone bus
