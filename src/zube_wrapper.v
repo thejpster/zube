@@ -78,7 +78,7 @@ module zube_wrapper #(
     output wire [31:0] wb_data_out,
 
     // IRQ to SoC when registers have been written or read.
-    output wire irq_out,
+    output wire irq_out
 
     // Note: There is no support for interrupts on the Z80 side!
     );
@@ -112,7 +112,7 @@ module zube_wrapper #(
         .wb_data_in(wb_data_in),
         .wb_ack_out(wb_ack_out),
         .wb_data_out(wb_data_out),
-        .irq_out(irq_out),
+        .irq_out(irq_out)
     );
 
     // Z80 Address bus
