@@ -1,26 +1,57 @@
 [*]
 [*] GTKWave Analyzer v3.3.104 (w)1999-2020 BSI
-[*] Sat Sep 11 15:49:20 2021
+[*] Sat Oct 23 15:45:37 2021
 [*]
-[dumpfile] "zube.vcd"
-[dumpfile_mtime] "Sat Sep 11 15:47:39 2021"
-[dumpfile_size] 3051
-[savefile] "zube.gtkw"
+[dumpfile] "/home/jonathan/Documents/zero_to_asic/zube/zube.vcd"
+[dumpfile_mtime] "Sat Oct 23 15:45:25 2021"
+[dumpfile_size] 12847
+[savefile] "/home/jonathan/Documents/zero_to_asic/zube/zube.gtkw"
 [timestart] 0
-[size] 2560 1536
+[size] 1280 736
 [pos] -1 -1
-*-15.868866 120000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
-[sst_width] 290
-[signals_width] 289
+*-19.549934 1580000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] zube.
+[sst_width] 209
+[signals_width] 281
 [sst_expanded] 1
-[sst_vpaned_height] 462
+[sst_vpaned_height] 194
 @29
 zube.clk
-@22
-zube.address_bus[15:0]
-zube.data_bus[7:0]
 @28
-zube.write_strobe_b
-zube.read_strobe_b
+zube.irq_out
+zube.z80_ioreq_b
+zube.z80_read_strobe_b
+zube.z80_write_strobe_b
+@22
+zube.z80_data_bus_in[7:0]
+zube.z80_data_bus_out[7:0]
+zube.z80_address_bus[7:0]
+@28
+zube.z80_bus_dir
+@22
+zube.wb_data_out[31:0]
+zube.wb_data_in[31:0]
+zube.wb_addr_in[31:0]
+@28
+zube.wb_stb_in
+zube.wb_we_in
+zube.wb_ack_out
+zube.wb_cyc_in
+@22
+zube.control_in.contents[7:0]
+@28
+zube.control_in.ready
+@22
+zube.control_out.contents[7:0]
+@28
+zube.control_out.ready
+@22
+zube.data_in.contents[7:0]
+@28
+zube.data_in.ready
+@22
+zube.data_out.contents[7:0]
+@28
+zube.data_out.ready
 [pattern_trace] 1
 [pattern_trace] 0

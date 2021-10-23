@@ -15,8 +15,6 @@ COCOTB_PREFIX=$(cocotb-config --prefix)
 export COCOTB_REDUCED_LOG_FMT=1
 export PYTHONPATH=test:${PYTHONPATH:-}
 
-SOURCE_LIST="src/zube.v src/data_register.v"
-
 rm -rf sim_build
 mkdir -p sim_build
 
