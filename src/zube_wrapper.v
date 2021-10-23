@@ -118,12 +118,12 @@ module zube_wrapper #(
     // Z80 Address bus
     assign io_oeb[7:0] = 8'hFF;
     // Z80 Data bus
-    assign io_oeb[15:8] = io_out[18] ? 8'h00 : 8'hFF;
+    assign io_oeb[15:8] = io_out[16] ? 8'h00 : 8'hFF;
     // Z80 Control pins
-    assign io_oeb[18:16] = 3'b011;
+    assign io_oeb[20:16] = 5'b11110;
     // Set unused outputs low
     assign io_out[7:0] = 8'b0;
-    assign io_out[27:17] = 11'b0;
+    assign io_out[27:21] = 7'b0;
 
 endmodule
 `default_nettype wire
