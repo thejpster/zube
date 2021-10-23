@@ -51,7 +51,11 @@ async def test_get_reg(dut):
     Test reading values from the given register.
     """
 
-    return dut.data_out  
+    dut.read_strobe <= 1
+    value = dut.data_out
+    await ClockCycles(dut.clk, FAST_CLOCKS_PER_SLOW_CLOCK)
+    dut.read_strobe <= 0
+    return value
 
 @cocotb.test()
 async def test_all(dut):
@@ -65,17 +69,26 @@ async def test_all(dut):
     await reset(dut)
 
     assert await test_get_reg(dut) == 0x00
+    assert dut.ready == 0
 
     await test_set_reg(dut, 0x10)
+    assert dut.ready == 1
     assert await test_get_reg(dut) == 0x10
+    assert dut.ready == 0
 
     await test_set_reg(dut, 0xFF)
+    assert dut.ready == 1
     assert await test_get_reg(dut) == 0xFF
+    assert dut.ready == 0
 
     await test_set_reg(dut, 0x01)
+    assert dut.ready == 1
     assert await test_get_reg(dut) == 0x01
+    assert dut.ready == 0
 
     await test_set_reg(dut, 0x55)
+    assert dut.ready == 1
     assert await test_get_reg(dut) == 0x55
+    assert dut.ready == 0
 
 # End of file

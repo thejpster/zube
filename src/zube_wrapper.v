@@ -77,10 +77,8 @@ module zube_wrapper #(
     // outgoing data
     output wire [31:0] wb_data_out,
 
-    // IRQ to SoC when Data register has been written. Cleared on read.
-    output wire irq_data_out,
-    // IRQ to SoC when Status register has been written. Cleared on read.
-    output wire irq_status_out
+    // IRQ to SoC when registers have been written or read.
+    output wire irq_out,
 
     // Note: There is no support for interrupts on the Z80 side!
     );
@@ -99,12 +97,14 @@ module zube_wrapper #(
 
         .clk(clk),
         .reset_b(reset_b),
-        .z80_write_strobe_b(io_in[16]),
-        .z80_read_strobe_b(io_in[17]),
         .z80_address_bus(io_in[7:0]),
         .z80_data_bus_in(io_in[15:8]),
         .z80_data_bus_out(io_out[15:8]),
-        .z80_bus_dir(io_out[18]),
+        .z80_bus_dir(io_out[16]),
+        .z80_read_strobe_b(io_in[17]),
+        .z80_write_strobe_b(io_in[18]),
+        .z80_m1(io_in[19]),
+        .z80_ioreq_b(io_in[20]),
         .wb_cyc_in(wb_cyc_in),
         .wb_stb_in(wb_stb_in),
         .wb_we_in(wb_we_in),
@@ -112,8 +112,7 @@ module zube_wrapper #(
         .wb_data_in(wb_data_in),
         .wb_ack_out(wb_ack_out),
         .wb_data_out(wb_data_out),
-        .irq_data_out(irq_data_out),
-        .irq_status_out(irq_status_out)
+        .irq_out(irq_out),
     );
 
     // Z80 Address bus
@@ -122,6 +121,9 @@ module zube_wrapper #(
     assign io_oeb[15:8] = io_out[18] ? 8'h00 : 8'hFF;
     // Z80 Control pins
     assign io_oeb[18:16] = 3'b011;
+    // Set unused outputs low
+    assign io_out[7:0] = 8'b0;
+    assign io_out[27:17] = 11'b0;
 
 endmodule
 `default_nettype wire

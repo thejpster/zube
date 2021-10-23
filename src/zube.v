@@ -13,7 +13,8 @@ module zube #(
 	parameter   [31:0]  BASE_ADDRESS    = 32'h3000_0000,
 	parameter   [31:0]  Z80_ADDRESS     = BASE_ADDRESS,
 	parameter   [31:0]  DATA_ADDRESS    = BASE_ADDRESS + 4,
-	parameter   [31:0]  STATUS_ADDRESS  = BASE_ADDRESS + 8
+	parameter   [31:0]  CONTROL_ADDRESS = BASE_ADDRESS + 8,
+	parameter   [31:0]  STATUS_ADDRESS  = BASE_ADDRESS + 12
 ) (
 	/**
 	 * Power Pins (only for gate-level simulation)
@@ -48,6 +49,10 @@ module zube #(
 	input wire z80_write_strobe_b,
 	// goes low when address contains a address being read
 	input wire z80_read_strobe_b,
+	// goes low when this is an I/O access
+	input wire z80_ioreq_b,
+	// goes high for valid IOREQ, low for INTACK (which we ignore)
+	input wire z80_m1,
 	// the bottom eight bits of the address bus
 	input wire [7:0] z80_address_bus,
 	// incoming data bus
@@ -78,10 +83,8 @@ module zube #(
 	// outgoing data
 	output reg [31:0] wb_data_out,
 
-	// IRQ to SoC when Data register has been written. Cleared on read.
-	output reg irq_data_out,
-	// IRQ to SoC when Status register has been written. Cleared on read.
-	output reg irq_status_out
+	// IRQ to ASIC when registers are read/written.
+	output reg irq_out
 
 	// Note: There is no support for interrupts on the Z80 side!
 	);
@@ -89,19 +92,36 @@ module zube #(
 	// Buffered data bus. Sampled with the high speed clock.
 	reg[7:0] sync_z80_data_bus_in;
 
-	// Write to Status OUT from Z80
-	reg status_out_write_stb;
-	// Write to Status IN from SoC
-	reg status_in_write_stb;
-	// Write to Data OUT from Z80
-	reg data_out_write_stb;
-	// Write to Data IN from Soc
-	reg data_in_write_stb;
+	// Buffered address bus. Sampled with the high speed clock.
+	reg[7:0] sync_z80_address_bus;
 
-	// Signals when we can drive the Z80 data bus
+	// A Z80 I/O Read Strobe, synched to the high-speed clock
+	reg sync_io_read;
+	// sync_io_read but delayed
+	reg sync_io_read_delayed;
+	// A Z80 I/O Write Strobe, synched to the high-speed clock
+	reg sync_io_write;
+	// sync_io_write but delayed
+	reg sync_io_write_delayed;
+
+	// A WB Read Strobe, synched to the high-speed clock
+	wire wb_read;
+	// A WB Write Strobe, synched to the high-speed clock
+	wire wb_write;
+
+	// Notes when OUT registers have data in them
 	reg data_out_ready;
+	reg control_out_ready;
 
-	// Z80 I/O base address
+	// Records when we are driving the Z80 data bus. Also used to ensure the
+	// value we drive on to the data bus is sampled on the first falling edge
+	// of IOREQ and doesn't subsequently change (even if we get a wishbone
+	// write in the next cycle).
+	reg data_bus_driven;
+
+	// Z80 I/O base address. We listen to this address for *Data*, and the
+	// next one for *Control* and the one after for *Status*. Can be set over
+	// the Wishbone bus.
 	reg[7:0] z80_base_address;
 
 	// What's in the Data Out Register
@@ -110,97 +130,150 @@ module zube #(
 	// What's in the Data In Register
 	wire[7:0] data_in_contents;
 
-	// What's in the Status In Register
-	wire[7:0] status_in_contents;
+	// What's in the Control In Register
+	wire[7:0] control_in_contents;
 
-	// What's in the Status Out Register
-	wire[7:0] status_out_contents;
+	// What's in the Control Out Register
+	wire[7:0] control_out_contents;
 
-	// Z80 to SoC
-	data_register data_out(.clk(clk), .reset(~reset_b), .write_strobe(data_out_write_stb), .data_in(sync_z80_data_bus_in), .data_out(data_out_contents));
-	data_register status_out(.clk(clk), .reset(~reset_b), .write_strobe(status_out_write_stb), .data_in(sync_z80_data_bus_in), .data_out(status_out_contents));
+	// Do our four registers have any data in them?
+	wire [3:0] ready_signals;
 
-	// SoC to Z80
-	data_register data_in(.clk(clk), .reset(~reset_b), .write_strobe(data_in_write_stb), .data_in(wb_data_in[7:0]), .data_out(data_in_contents));
-	data_register status_in(.clk(clk), .reset(~reset_b), .write_strobe(status_in_write_stb), .data_in(wb_data_in[7:0]), .data_out(status_in_contents));
+	assign wb_read = wb_stb_in && wb_cyc_in && ~wb_we_in;
+	assign wb_write = wb_stb_in && wb_cyc_in && wb_we_in;
+
+	// Z80 to ASIC
+	data_register data_out(
+		.clk(clk),
+		.reset(~reset_b),
+		.write_strobe(sync_io_write && (sync_z80_address_bus == z80_base_address)),
+		.read_strobe(wb_read && (wb_addr_in == DATA_ADDRESS)),
+		.data_in(sync_z80_data_bus_in),
+		.data_out(data_out_contents),
+		.ready(ready_signals[0])
+	);
+
+	data_register control_out(
+		.clk(clk),
+		.reset(~reset_b),
+		.write_strobe(sync_io_write && (sync_z80_address_bus == (z80_base_address + 1))),
+		.read_strobe(wb_read && (wb_addr_in == CONTROL_ADDRESS)),
+		.data_in(sync_z80_data_bus_in),
+		.data_out(control_out_contents),
+		.ready(ready_signals[1])
+	);
+
+	// ASIC to Z80
+	data_register data_in(
+		.clk(clk),
+		.reset(~reset_b),
+		.write_strobe(wb_write && (wb_addr_in == DATA_ADDRESS)),
+		.read_strobe(sync_io_read && (sync_z80_address_bus == z80_base_address)),
+		.data_in(wb_data_in[7:0]),
+		.data_out(data_in_contents),
+		.ready(ready_signals[2])
+	);
+
+	data_register control_in(
+		.clk(clk),
+		.reset(~reset_b),
+		.write_strobe(wb_write && (wb_addr_in == CONTROL_ADDRESS)),
+		.read_strobe(sync_io_read && (sync_z80_address_bus == (z80_base_address + 1))),
+		.data_in(wb_data_in[7:0]),
+		.data_out(control_in_contents),
+		.ready(ready_signals[3])
+	);
 
 	always @(posedge clk) begin
 		if (~reset_b) begin
 			// Reset state here
-			data_out_ready <= 1'b0;
-			status_out_write_stb <= 1'b0;
-			status_in_write_stb <= 1'b0;
-			data_out_write_stb <= 1'b0;
-			data_in_write_stb <= 1'b0;
-			irq_data_out <= 1'b0;
-			irq_status_out <= 1'b0;
+			data_bus_driven <= 0;
+			sync_z80_data_bus_in <= 0;
+			sync_z80_address_bus <= 0;
+			sync_io_read <= 0;
+			sync_io_read_delayed <= 0;
+			sync_io_write <= 0;
+			sync_io_read_delayed <= 0;
+			irq_out <= 0;
 			z80_data_bus_out <= 8'h00;
 			z80_base_address = 16'h80;
 		end else begin
 			// Sample slow incoming signals with our high speed clock
 			// Helps avoid metastability, by keeping everything ticking along with the high speed clock
 			sync_z80_data_bus_in <= z80_data_bus_in;
+			sync_z80_address_bus <= z80_address_bus;
+			sync_io_read <= z80_m1 && ~z80_ioreq_b && ~z80_read_strobe_b;
+			sync_io_write <= z80_m1 && ~z80_ioreq_b && ~z80_write_strobe_b;
+			sync_io_read_delayed <= sync_io_read;
+			sync_io_write_delayed <= sync_io_write;
 
-			data_out_write_stb <= (z80_address_bus == z80_base_address) && ~z80_write_strobe_b;
-			status_out_write_stb <= (z80_address_bus == z80_base_address + 16'h0001) && ~z80_write_strobe_b;
+			// Check for Z80 reads/writes - everything here should use the
+			// sync signals, not the async signals.
 
-			// Check for Z80 reads/writes
-
-			if ( data_out_write_stb && z80_write_strobe_b ) begin
-				// A write to Data OUT has finished (because z80_write_strobe_b is high)
-				irq_data_out <= 1'b1;
-			end else if ( status_out_write_stb && z80_write_strobe_b ) begin
-				// A write to Status OUT has finished (because z80_write_strobe_b is high)
-				irq_status_out <= 1'b1;
-			end else if ((z80_address_bus == z80_base_address) && ~z80_read_strobe_b && ~data_out_ready) begin
+			if ((sync_z80_address_bus == z80_base_address) && sync_io_write && ~sync_io_write_delayed) begin
+				// Fresh Z80 write
+				irq_out <= 1;
+			end else if ((sync_z80_address_bus == z80_base_address + 1) && sync_io_write && ~sync_io_write_delayed) begin
+				// Fresh Z80 write
+				irq_out <= 1;
+			end else if ((sync_z80_address_bus == z80_base_address) && sync_io_read && ~data_bus_driven) begin
 				// The Z80 is reading from Data IN
-				data_out_ready <= 1'b1;
+				data_bus_driven <= 1;
 				z80_data_bus_out <= data_in_contents;
-			end else if ((z80_address_bus == (z80_base_address + 1)) && ~z80_read_strobe_b && ~data_out_ready) begin
-				// The Z80 is reading from Status IN
-				data_out_ready <= 1'b1;
-				z80_data_bus_out <= status_in_contents;
-			end else if (data_out_ready && z80_read_strobe_b) begin
-				// Read strobe released - we can no longer drive the bus
-				data_out_ready <= 1'b0;
+				irq_out <= 1;
+			end else if ((sync_z80_address_bus == z80_base_address + 1) && sync_io_read && ~data_bus_driven) begin
+				// The Z80 is reading from Control IN
+				data_bus_driven <= 1;
+				z80_data_bus_out <= control_in_contents;
+				irq_out <= 1;
+			end else if ((sync_z80_address_bus == z80_base_address + 2) && sync_io_read && ~data_bus_driven) begin
+				// The Z80 is reading from Status
+				data_bus_driven <= 1;
+				z80_data_bus_out <= {4'h0, ready_signals};
+			end else begin
+				// IRQ is just a single cycle
+				irq_out <= 0;
+				// Are we done with the bus?
+				if (data_bus_driven && ~sync_io_read) begin
+					// Read strobe released - we can no longer drive the bus
+					data_bus_driven <= 0;
+				end
 			end
 
 			// Check for wishbone reads/writes
 
 			// Write Z80 base address
-			if (wb_stb_in && wb_cyc_in && wb_we_in && wb_addr_in == Z80_ADDRESS) begin
+			if (wb_write && wb_addr_in == Z80_ADDRESS) begin
 				z80_base_address <= wb_data_in[7:0];
 			end
-			// Let register grab data off the wishbone bus
-			data_in_write_stb <= wb_stb_in && wb_cyc_in && wb_we_in && (wb_addr_in == DATA_ADDRESS);
-			status_in_write_stb <= wb_stb_in && wb_cyc_in && wb_we_in && (wb_addr_in == STATUS_ADDRESS);
 
 			// Check for wishbone reads
 
-			if (wb_stb_in && wb_cyc_in && !wb_we_in) begin
+			if (wb_read) begin
 				case (wb_addr_in)
 					Z80_ADDRESS: begin
 						wb_data_out <= {24'b0, z80_base_address};
 					end
 					DATA_ADDRESS: begin
 						wb_data_out <= {24'b0, data_out_contents};
-						irq_data_out <= 1'b0;
+					end
+					CONTROL_ADDRESS: begin
+						wb_data_out <= {24'b0, control_out_contents};
 					end
 					STATUS_ADDRESS: begin
-						wb_data_out <= {24'b0, status_out_contents};
-						irq_status_out <= 1'b0;
+						wb_data_out <= {28'b0, ready_signals};
 					end
 				endcase
 			end
 
 			// Always ack wishbone bus immediately
-			wb_ack_out <= (wb_stb_in && ((wb_addr_in == Z80_ADDRESS) || (wb_addr_in == DATA_ADDRESS) || (wb_addr_in == STATUS_ADDRESS)));
+			wb_ack_out <= (wb_stb_in && ((wb_addr_in == Z80_ADDRESS) || (wb_addr_in == DATA_ADDRESS) || (wb_addr_in == CONTROL_ADDRESS) || (wb_addr_in == STATUS_ADDRESS)));
 
 		end
 	end
 
-	// Only drive the Z80 bus when we're not in reset, and there's an active strobe, and it's one of our addresses
-	assign z80_bus_dir = data_out_ready;
+	// Tell the external buffer when we want to drive the bus
+	assign z80_bus_dir = data_bus_driven && ~z80_read_strobe_b;
 
 endmodule
 `default_nettype wire
