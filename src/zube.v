@@ -138,7 +138,7 @@ module zube #(
 	localparam REG_CONTROL_IN = 3;
 
 	// What's in the four registers
-	wire [3:0][7:0] contents;
+	wire [7:0] contents [3:0];
 
 	// Do our four registers have any data in them?
 	wire [3:0] ready_signals;
