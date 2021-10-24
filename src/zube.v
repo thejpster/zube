@@ -83,10 +83,10 @@ module zube #(
 	// outgoing data
 	output reg [31:0] wb_data_out,
 
-	// IRQ to ASIC when registers are read/written.
+	// IRQ to ASIC when registers are read/written on the Z80 side.
 	output reg irq_out
 
-	// Note: There is no support for interrupts on the Z80 side!
+	// Note: There is no support for interrupts to the Z80!
 	);
 
 	// Buffered data bus. Sampled with the high speed clock.
@@ -106,12 +106,11 @@ module zube #(
 
 	// A WB Read Strobe, synched to the high-speed clock
 	wire wb_read;
+	assign wb_read = wb_stb_in && wb_cyc_in && ~wb_we_in;
+
 	// A WB Write Strobe, synched to the high-speed clock
 	wire wb_write;
-
-	// Notes when OUT registers have data in them
-	reg data_out_ready;
-	reg control_out_ready;
+	assign wb_write = wb_stb_in && wb_cyc_in && wb_we_in;
 
 	// Records when we are driving the Z80 data bus. Also used to ensure the
 	// value we drive on to the data bus is sampled on the first falling edge
@@ -119,28 +118,30 @@ module zube #(
 	// write in the next cycle).
 	reg data_bus_driven;
 
-	// Z80 I/O base address. We listen to this address for *Data*, and the
-	// next one for *Control* and the one after for *Status*. Can be set over
-	// the Wishbone bus.
+	// Z80 I/O base address. Our three Z80 I/O addresses are consecutive, and
+	// start with this value. Can by set over Wishbone by writing to
+	// the address `Z80_ADDRESS`.
 	reg[7:0] z80_base_address;
 
-	// What's in the Data Out Register
-	wire[7:0] data_out_contents;
+	// Give our four mailboxes a number
 
-	// What's in the Data In Register
-	wire[7:0] data_in_contents;
+	// Data OUT (Z80 to ASIC box #1)
+	localparam REG_DATA_OUT = 0;
 
-	// What's in the Control In Register
-	wire[7:0] control_in_contents;
+	// Control OUT (Z80 to ASIC box #2)
+	localparam REG_CONTROL_OUT = 1;
 
-	// What's in the Control Out Register
-	wire[7:0] control_out_contents;
+	// Data IN (ASIC to Z80 to box #1)
+	localparam REG_DATA_IN = 2;
+
+	// Control IN (ASIC to Z80 to box #2)
+	localparam REG_CONTROL_IN = 3;
+
+	// What's in the four registers
+	wire [3:0][7:0] contents;
 
 	// Do our four registers have any data in them?
 	wire [3:0] ready_signals;
-
-	assign wb_read = wb_stb_in && wb_cyc_in && ~wb_we_in;
-	assign wb_write = wb_stb_in && wb_cyc_in && wb_we_in;
 
 	// Z80 to ASIC
 	data_register data_out(
@@ -149,8 +150,8 @@ module zube #(
 		.write_strobe(sync_io_write && (sync_z80_address_bus == z80_base_address)),
 		.read_strobe(wb_read && (wb_addr_in == DATA_ADDRESS)),
 		.data_in(sync_z80_data_bus_in),
-		.data_out(data_out_contents),
-		.ready(ready_signals[0])
+		.data_out(contents[REG_DATA_OUT]),
+		.ready(ready_signals[REG_DATA_OUT])
 	);
 
 	data_register control_out(
@@ -159,8 +160,8 @@ module zube #(
 		.write_strobe(sync_io_write && (sync_z80_address_bus == (z80_base_address + 1))),
 		.read_strobe(wb_read && (wb_addr_in == CONTROL_ADDRESS)),
 		.data_in(sync_z80_data_bus_in),
-		.data_out(control_out_contents),
-		.ready(ready_signals[1])
+		.data_out(contents[REG_CONTROL_OUT]),
+		.ready(ready_signals[REG_CONTROL_OUT])
 	);
 
 	// ASIC to Z80
@@ -170,8 +171,8 @@ module zube #(
 		.write_strobe(wb_write && (wb_addr_in == DATA_ADDRESS)),
 		.read_strobe(sync_io_read && (sync_z80_address_bus == z80_base_address)),
 		.data_in(wb_data_in[7:0]),
-		.data_out(data_in_contents),
-		.ready(ready_signals[2])
+		.data_out(contents[REG_DATA_IN]),
+		.ready(ready_signals[REG_DATA_IN])
 	);
 
 	data_register control_in(
@@ -180,8 +181,8 @@ module zube #(
 		.write_strobe(wb_write && (wb_addr_in == CONTROL_ADDRESS)),
 		.read_strobe(sync_io_read && (sync_z80_address_bus == (z80_base_address + 1))),
 		.data_in(wb_data_in[7:0]),
-		.data_out(control_in_contents),
-		.ready(ready_signals[3])
+		.data_out(contents[REG_CONTROL_IN]),
+		.ready(ready_signals[REG_CONTROL_IN])
 	);
 
 	always @(posedge clk) begin
@@ -219,12 +220,12 @@ module zube #(
 			end else if ((sync_z80_address_bus == z80_base_address) && sync_io_read && ~data_bus_driven) begin
 				// The Z80 is reading from Data IN
 				data_bus_driven <= 1;
-				z80_data_bus_out <= data_in_contents;
+				z80_data_bus_out <= contents[REG_DATA_IN];
 				irq_out <= 1;
 			end else if ((sync_z80_address_bus == z80_base_address + 1) && sync_io_read && ~data_bus_driven) begin
 				// The Z80 is reading from Control IN
 				data_bus_driven <= 1;
-				z80_data_bus_out <= control_in_contents;
+				z80_data_bus_out <= contents[REG_CONTROL_IN];
 				irq_out <= 1;
 			end else if ((sync_z80_address_bus == z80_base_address + 2) && sync_io_read && ~data_bus_driven) begin
 				// The Z80 is reading from Status
@@ -255,10 +256,10 @@ module zube #(
 						wb_data_out <= {24'b0, z80_base_address};
 					end
 					DATA_ADDRESS: begin
-						wb_data_out <= {24'b0, data_out_contents};
+						wb_data_out <= {24'b0, contents[REG_DATA_OUT]};
 					end
 					CONTROL_ADDRESS: begin
-						wb_data_out <= {24'b0, control_out_contents};
+						wb_data_out <= {24'b0, contents[REG_CONTROL_OUT]};
 					end
 					STATUS_ADDRESS: begin
 						wb_data_out <= {28'b0, ready_signals};
