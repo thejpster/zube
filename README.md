@@ -142,8 +142,9 @@ NOTE: This ASIC has only been simulated. It has not been tested with real hardwa
 
 ## Wrapper
 
-This project sits inside the zube project's Multi Project Environment. This
-wraps multiple projects together into one entry onto MPW3.
+This project can be used standalone, but was designed to be
+used inside the zero2asic project's Multi Project Environment.
+This wraps multiple projects together into one entry onto MPW3.
 
 Every entry submitted to MPW3 has:
 
