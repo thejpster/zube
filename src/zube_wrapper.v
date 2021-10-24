@@ -51,10 +51,17 @@ module zube_wrapper #(
 
     // Input
     input wire[27:0] io_in,
+    `ifdef FORMAL
+    // Output
+    output wire[27:0] io_out,
+    // ~Output Enable
+    output wire[27:0] io_oeb,
+    `else
     // Output
     inout wire[27:0] io_out,
     // ~Output Enable
     inout wire[27:0] io_oeb,
+    `endif
 
     /**
      * Wishbone bus
