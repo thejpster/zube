@@ -4,17 +4,18 @@
 set -euo pipefail
 
 # Set this to your project name
-PROJECT_NAME=zube
+PROJECT_NAME=zube_submission
 
 # Get the dir of this script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # Harden the design in the OpenLANE Docker
 docker run -it --rm \
-	-v ${OPENLANE_ROOT}:/openLANE_flow \
-	-v ${SCRIPT_DIR}:/openLANE_flow/designs/${PROJECT_NAME} \
+	-v ${OPENLANE_ROOT}:/openlane \
+	-v ${SCRIPT_DIR}:/openlane/designs/${PROJECT_NAME} \
 	-v ${PDK_ROOT}:${PDK_ROOT} \
 	-e PDK_ROOT=${PDK_ROOT} \
 	-u $(id -u ${USER}):$(id -g ${USER}) \
-	${IMAGE_NAME} \
+	efabless/openlane:mpw-3a \
 	./flow.tcl -design ${PROJECT_NAME}
+

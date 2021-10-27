@@ -144,9 +144,6 @@ async def test_all(dut):
     # Can we get the contents?
     control = await test_wb_get(wbs, wb_control_addr)
     assert control == 0x55, f"control was {control}, not 0x55"
-    # Is the other register still the same?
-    data = await test_wb_get(wbs, wb_data_addr)
-    assert data == 0x10, f"data was {data}, not 0x10"
     # Have the flags gone now?
     status = await test_wb_get(wbs, wb_status_addr)
     assert status == 0x00, f"status was {status}, not 0x00"
@@ -174,9 +171,6 @@ async def test_all(dut):
     # Can we get the contents?
     data = await test_z80_get(dut, z80_data_addr)
     assert data == 0x10, f"data was {data}, not 0x10"
-    # Is the other register still empty?
-    control = await test_z80_get(dut, z80_control_addr)
-    assert control == 0x00, f"control was {control}, not 0x00"
     # Have the flags gone?
     status = await test_z80_get(dut, z80_status_addr)
     assert status == 0x00, f"status was {status}, not 0x00"
@@ -189,9 +183,6 @@ async def test_all(dut):
     # Can we get the contents?
     control = await test_z80_get(dut, z80_control_addr)
     assert control == 0x84, f"control was {control}, not 0x84"
-    # Is the other register still the same?
-    data = await test_z80_get(dut, z80_data_addr)
-    assert data == 0x10, f"data was {data}, not 0x10"
     # Have the flags gone?
     status = await test_z80_get(dut, z80_status_addr)
     assert status == 0x00, f"status was {status}, not 0x00"
@@ -212,4 +203,35 @@ async def test_all(dut):
     status = await test_z80_get(dut, z80_status_addr)
     assert status == 0x00, f"status was {status}, not 0x00"
 
+    # Test the FIFOs
+    for x in range(0x50, 0x50 + dut.data_in.DEPTH.value):
+        # Not full
+        assert (await test_z80_get(dut, z80_status_addr) & 0x40) == 0
+        await test_wb_set(wbs, wb_data_addr, x)
+    # Now it's full (full=1, not_empty=1)
+    assert (await test_z80_get(dut, z80_status_addr) & 0x44) == 0x44
+    for x in range(0x50, 0x50 + dut.data_in.DEPTH.value):
+        assert await test_z80_get(dut, z80_data_addr) == (x & 0xFF)
+    # Now it's empty (full=0, not_empty=0)
+    assert (await test_z80_get(dut, z80_status_addr) & 0x44) == 0
+
+    for x in range(0x50, 0x50 + dut.control_in.DEPTH.value):
+        # Not full
+        assert (await test_z80_get(dut, z80_status_addr) & 0x80) == 0
+        await test_wb_set(wbs, wb_control_addr, x)
+    # Now it's full (full=1, not_empty=1)
+    assert (await test_z80_get(dut, z80_status_addr) & 0x88) == 0x88
+    for x in range(0x50, 0x50 + dut.control_in.DEPTH.value):
+        assert await test_z80_get(dut, z80_control_addr) == (x & 0xFF)
+    # Now it's empty (full=0, not_empty=0)
+    assert (await test_z80_get(dut, z80_status_addr) & 0x88) == 0
+
+    # Try an underflow - make sure it's not invalid
+    for i in range(1,10):
+        assert await test_z80_get(dut, z80_data_addr) in range(0,255)
+        assert await test_z80_get(dut, z80_control_addr) in range(0,255)
+        assert await test_wb_get(wbs, wb_data_addr) in range(0, 255)
+        assert await test_wb_get(wbs, wb_control_addr) in range(0, 255)
+
 # End of file
+

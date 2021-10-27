@@ -21,9 +21,8 @@ can implement:
 ### Z80 Side
 
 The ASIC exposes three I/O addresses on the Z80 bus. These let you access two
-read-only mailboxes and two write-only mailboxes. There is also a *Status*
-register showing which mailboxes contain mail (i.e. have been written but not
-read).
+read-only FIFOs and two write-only FIFOs. There is also a *Status*
+register showing the state of each FIFO.
 
 | Address      | Direction | Register    |
 |:-------------|:----------|:------------|
@@ -39,10 +38,9 @@ programmers - this is designed to make sense from the Z80 point of view.
 ### PicoRV32 Side
 
 The ASIC also sits on four addresses on the Wishbone bus. These let you access
-two read-only mailboxes and two write-only mailboxes. There is also
-a *Status* register showing which mailboxes contain mail (i.e. have been
-written but not read), plus a read/write register for setting the Base I/O
-Address on the Z80 side.
+two read-only FIFOs and two write-only FIFOs. There is also a *Status*
+register showing the state of each FIFO, plus a read/write register for
+setting the Base I/O Address on the Z80 side.
 
 | Address        | Direction  | Register         |
 |:---------------|:-----------|:-----------------|
@@ -57,29 +55,37 @@ Address on the Z80 side.
 
 * The PicoRV32 sets the 8-bit "I/O base address" for the three Z80 registers (the Wishbone base address is fixed at 0x3000_0000).
 * The ASIC sits on the 8080 16-bit address bus (or, the bottom eight bits of it) and the 8-bit data bus.
-* When a Z80 write occurs to a mailbox:
-    * the 8 bit data is latched
-    * a sticky bit is set in the status register
-    * an IRQ is raised on the PicoRV32, which can then read one or both mailboxes
-* When a Z80 read occurs on a mailbox:
+* When a Z80 write occurs to a FIFO:
+    * the 8 bit data is stored
+    * the 'not empty' bit (and possibly the 'full' bit) will be set in the *Status* register
+    * an IRQ is raised on the PicoRV32, which can then read one or both FIFOs
+* When a Z80 read occurs on a FIFO:
     * The contents of the register is provided
-    * a sticky bit is cleared in the status register
-    * an IRQ is raised on the PicoRV32, which can then read one or both mailboxes
+    * the 'full' bit (and possibly the 'not empty' bit) will be cleared in the *Status* register
+    * an IRQ is raised on the PicoRV32, which can then read one or both FIFOs
 
-The meaning of the bits in two *Data* mailboxes and the two *Control* mailboxes is set entirely by the PicoRV32 firmware.
+The meaning of the bits in two *Data* FIFOs and the two *Control* FIFOs is set entirely by the PicoRV32 firmware.
 
 The meaning of the bits in the *Status* register is as follows:
 
-| Bit | Meaning             |
-|:----|:--------------------|
-| 0   | Data OUT is full    |
-| 1   | Control OUT is full |
-| 2   | Data IN is full     |
-| 3   | Control IN is full  |
+| Bit | Meaning                  |
+|:----|:-------------------------|
+| 0   | Data OUT is not empty    |
+| 1   | Control OUT is not empty |
+| 2   | Data IN is not empty     |
+| 3   | Control IN is not empty  |
+| 4   | Data OUT is full         |
+| 5   | Control OUT is full      |
+| 6   | Data IN is full          |
+| 7   | Control IN is full       |
 
 Note the *Status* register is read-only and its contents can only be changed
-by reading/writing the relevant mailboxes. That means that a read of
+by reading/writing the relevant FIFOs. That means that a read of
 the *Status* register won't clear the *Status* register.
+
+It is an error to read from a FIFO when the 'not empty' bit is unset (i.e. the
+FIFO is empty). It is also an error to write to a FIFO when the 'full' bit is
+set (i.e. the FIFO is full).
 
 ## Example
 
@@ -91,9 +97,13 @@ ASIC: Zube IRQ
 ASIC: Read 0x02 from Status      -- Control OUT has data
 ASIC: Read 0x01 from Control OUT -- Enable UART mode
 Z80: Write 0x65 to Data OUT      -- Send '0x65' to ASIC
+Z80: Write 0x66 to Data OUT      -- Send '0x66' to ASIC
 ASIC: Zube IRQ
 ASIC: Read 0x01 from Status      -- Data OUT has data
 ASIC: Read 0x65 from Data OUT    -- ASIC copies value to UART peripheral
+ASIC: Read 0x01 from Status      -- Data OUT has data
+ASIC: Read 0x66 from Data OUT    -- ASIC copies value to UART peripheral
+ASIC: Read 0x00 from Status      -- Data OUT has no more data
 Z80: Read 0x00 from Status       -- No UART data ready
 Z80: Read 0x00 from Status       -- No UART data ready
 ASIC: UART IRQ
@@ -127,14 +137,19 @@ functions.
 
 You will require a bi-directional bus driver to interface with the 5V bus from
 a 1.8V (or similar) ASIC. When `z80_bus_dir` is high, `z80_data_bus` should
-be driven on to the data bus. A 74AC245 or similar would be traditional - connect the ASIC to the `A` side and the Z80 to the `B` side. `/OE` can be tied low, and `T/R` can be tied to `z80_bus_dir`.
+be driven on to the data bus. A 74AC245 or similar would be traditional -
+connect the ASIC to the `A` side and the Z80 to the `B` side. `/OE` can be
+tied low, and `T/R` can be tied to `z80_bus_dir`.
 
-NOTE: This ASIC has only been simulated. It has not been tested with real hardware. If you connect this to an actual Z80, or any other hardware, you do so at your own risk! No warranty is given or implied.
+NOTE: This ASIC has only been simulated. It has not been tested with real
+hardware. If you connect this to an actual Z80, or any other hardware, you do
+so at your own risk! No warranty is given or implied.
 
 ## Code Layout
 
 * The top level module is zube, `src/zube.v`
-* The Caravel compatible container is, `src/zube_wrapper.v`. This just does some I/O routing to connect Zube's pins up to the Caravel GPIO bus.
+* The Caravel compatible container is, `src/zube_wrapper.v`. This just does
+  some I/O routing to connect Zube's pins up to the Caravel GPIO bus.
 * The 'data register' (a one-entry FIFO) is in `src/data_register.v`
 * The cocotb tests are in `test/test_*.py`
 * You can run the cocotb tests with `./test.sh`

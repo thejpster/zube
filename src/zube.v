@@ -8,8 +8,8 @@
 
 `default_nettype none
 `timescale 1ns/1ns
-module zube #(
-	// Wishbone base address
+	module zube #(
+		// Wishbone base address
 	parameter   [31:0]  BASE_ADDRESS    = 32'h3000_0000,
 	parameter   [31:0]  Z80_ADDRESS     = BASE_ADDRESS,
 	parameter   [31:0]  DATA_ADDRESS    = BASE_ADDRESS + 4,
@@ -83,7 +83,7 @@ module zube #(
 	// outgoing data
 	output reg [31:0] wb_data_out,
 
-	// IRQ to ASIC when registers are read/written on the Z80 side.
+	// IRQ to ASIC when FIFOs are read/written on the Z80 side.
 	output reg irq_out
 
 	// Note: There is no support for interrupts to the Z80!
@@ -106,10 +106,12 @@ module zube #(
 
 	// A WB Read Strobe, synched to the high-speed clock
 	wire wb_read;
+	reg wb_old_read;
 	assign wb_read = wb_stb_in && wb_cyc_in && ~wb_we_in;
 
 	// A WB Write Strobe, synched to the high-speed clock
 	wire wb_write;
+	reg wb_old_write;
 	assign wb_write = wb_stb_in && wb_cyc_in && wb_we_in;
 
 	// Records when we are driving the Z80 data bus. Also used to ensure the
@@ -137,52 +139,59 @@ module zube #(
 	// Control IN (ASIC to Z80 to box #2)
 	localparam REG_CONTROL_IN = 3;
 
-	// What's in the four registers
+	// What's in the four FIFOs
 	wire [7:0] contents [3:0];
 
-	// Do our four registers have any data in them?
+	// Do our four FIFOs have any data in them?
 	wire [3:0] ready_signals;
 
+	// Are our four FIFOs full?
+	wire [3:0] full_signals;
+
 	// Z80 to ASIC
-	data_register data_out(
+	data_register #(.DEPTH_BITS(5)) data_out (
 		.clk(clk),
 		.reset(~reset_b),
 		.write_strobe(sync_io_write && (sync_z80_address_bus == z80_base_address)),
 		.read_strobe(wb_read && (wb_addr_in == DATA_ADDRESS)),
 		.data_in(sync_z80_data_bus_in),
 		.data_out(contents[REG_DATA_OUT]),
-		.ready(ready_signals[REG_DATA_OUT])
+		.not_empty(ready_signals[REG_DATA_OUT]),
+		.full(full_signals[REG_DATA_OUT])
 	);
 
-	data_register control_out(
+	data_register #(.DEPTH_BITS(3)) control_out (
 		.clk(clk),
 		.reset(~reset_b),
 		.write_strobe(sync_io_write && (sync_z80_address_bus == (z80_base_address + 1))),
 		.read_strobe(wb_read && (wb_addr_in == CONTROL_ADDRESS)),
 		.data_in(sync_z80_data_bus_in),
 		.data_out(contents[REG_CONTROL_OUT]),
-		.ready(ready_signals[REG_CONTROL_OUT])
+		.not_empty(ready_signals[REG_CONTROL_OUT]),
+		.full(full_signals[REG_CONTROL_OUT])
 	);
 
 	// ASIC to Z80
-	data_register data_in(
+	data_register #(.DEPTH_BITS(5)) data_in (
 		.clk(clk),
 		.reset(~reset_b),
 		.write_strobe(wb_write && (wb_addr_in == DATA_ADDRESS)),
 		.read_strobe(sync_io_read && (sync_z80_address_bus == z80_base_address)),
 		.data_in(wb_data_in[7:0]),
 		.data_out(contents[REG_DATA_IN]),
-		.ready(ready_signals[REG_DATA_IN])
+		.not_empty(ready_signals[REG_DATA_IN]),
+		.full(full_signals[REG_DATA_IN])
 	);
 
-	data_register control_in(
+	data_register #(.DEPTH_BITS(3)) control_in (
 		.clk(clk),
 		.reset(~reset_b),
 		.write_strobe(wb_write && (wb_addr_in == CONTROL_ADDRESS)),
 		.read_strobe(sync_io_read && (sync_z80_address_bus == (z80_base_address + 1))),
 		.data_in(wb_data_in[7:0]),
 		.data_out(contents[REG_CONTROL_IN]),
-		.ready(ready_signals[REG_CONTROL_IN])
+		.not_empty(ready_signals[REG_CONTROL_IN]),
+		.full(full_signals[REG_CONTROL_IN])
 	);
 
 	always @(posedge clk) begin
@@ -198,6 +207,8 @@ module zube #(
 			irq_out <= 0;
 			z80_data_bus_out <= 8'h00;
 			z80_base_address = 16'h80;
+			wb_old_read <= 0;
+			wb_old_write <= 0;
 		end else begin
 			// Sample slow incoming signals with our high speed clock
 			// Helps avoid metastability, by keeping everything ticking along with the high speed clock
@@ -207,6 +218,8 @@ module zube #(
 			sync_io_write <= z80_m1 && ~z80_ioreq_b && ~z80_write_strobe_b;
 			sync_io_read_delayed <= sync_io_read;
 			sync_io_write_delayed <= sync_io_write;
+			wb_old_read <= wb_read;
+			wb_old_write <= wb_write;
 
 			// Check for Z80 reads/writes - everything here should use the
 			// sync signals, not the async signals.
@@ -230,7 +243,7 @@ module zube #(
 			end else if ((sync_z80_address_bus == z80_base_address + 2) && sync_io_read && ~data_bus_driven) begin
 				// The Z80 is reading from Status
 				data_bus_driven <= 1;
-				z80_data_bus_out <= {4'h0, ready_signals};
+				z80_data_bus_out <= {full_signals, ready_signals};
 			end else begin
 				// IRQ is just a single cycle
 				irq_out <= 0;
@@ -244,13 +257,13 @@ module zube #(
 			// Check for wishbone reads/writes
 
 			// Write Z80 base address
-			if (wb_write && wb_addr_in == Z80_ADDRESS) begin
+			if (wb_write && ~wb_old_write && wb_addr_in == Z80_ADDRESS) begin
 				z80_base_address <= wb_data_in[7:0];
 			end
 
 			// Check for wishbone reads
 
-			if (wb_read) begin
+			if (wb_read && ~wb_old_read) begin
 				case (wb_addr_in)
 					Z80_ADDRESS: begin
 						wb_data_out <= {24'b0, z80_base_address};
@@ -262,7 +275,7 @@ module zube #(
 						wb_data_out <= {24'b0, contents[REG_CONTROL_OUT]};
 					end
 					STATUS_ADDRESS: begin
-						wb_data_out <= {28'b0, ready_signals};
+						wb_data_out <= {24'b0, full_signals, ready_signals};
 					end
 				endcase
 			end
